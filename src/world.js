@@ -1,4 +1,4 @@
-import {roadX,roadYaw,station,propsForChunk,random,getTraffic} from './simulation.js';
+import {roadX,roadYaw,station,propsForChunk,random,getTraffic,getDebris} from './simulation.js';
 const sand=[.72,.57,.37], asphalt=[.27,.28,.25], paint=[.82,.76,.56], teal=[.29,.47,.43];
 const cache=new Map();
 function props(id){if(!cache.has(id))cache.set(id,propsForChunk(id));return cache.get(id);}
@@ -35,6 +35,7 @@ export function drawWorld(r,s,displayZ=s.car.z){
     r.quad([-28,.02,-16],[-16,.02,-16],[6,.02,42],[-6,.02,42],[.55,.52,.43]);
   }
   for(const t of getTraffic(s))drawCar(r,{car:t},false,[[.67,.25,.16],[.80,.72,.49],[.26,.37,.54],[.50,.53,.39]][t.id%4]);
+  for(const d of getDebris(s))r.box(d.x,d.y,d.z,d.size,d.size,d.size,[.34,.37,.32]);
   const sid=Math.floor((z-70)/350);
   for(let id=Math.max(0,sid-1);id<=sid+2;id++){
     const p=station(id);if(Math.abs(p.z-z)>700)continue;
@@ -56,12 +57,19 @@ export function drawWorld(r,s,displayZ=s.car.z){
 }
 export function drawCar(r,s,cockpit=false,bodyColor=teal){
   const c=s.car,sn=Math.sin(c.yaw),cs=Math.cos(c.yaw);
-  const box=(x,y,z,w,h,d,color)=>r.box(c.x+x*cs+z*sn,y,c.z-x*sn+z*cs,w,h,d,color,c.yaw);
+  const damage=c.damage??{front:0,rear:0,left:0,right:0},total=Math.max(0,1-(c.health??100)/100);
+  const box=(x,y,z,w,h,d,color)=>{
+    const crush=z>0?damage.front:damage.rear;
+    const zz=z*(1-crush*.3),xx=x*(1-(x>0?damage.right:damage.left)*.24);
+    r.box(c.x+xx*cs+zz*sn,y+(z>1?crush*.25:0),c.z-xx*sn+zz*cs,w*(1-total*.08),h*(1-total*.12),d*(1-crush*.2),color.map(v=>v*(1-total*.4)),c.yaw);
+  };
   if(!cockpit){
     box(0,.78,0,1.9,.65,4.1,bodyColor);box(0,1.24,-.35,1.7,.55,1.9,[.22,.34,.32]);box(0,1.63,-.35,1.85,.13,2.05,bodyColor);
     for(const xx of[-.86,.86])for(const zz of[-1.25,.55])box(xx,1.35,zz,.09,.6,.12,paint);
     box(0,1.2,-1.34,1.6,.48,.04,[.26,.40,.39]);
     for(const side of[-1,1]){box(side*.82,.8,2.08,.32,.2,.08,[.95,.88,.60]);box(side*.75,.85,-2.08,.25,.16,.08,[.65,.19,.1]);}
+    if(damage.front>.2){box(.2,1.12,1.3,1.5,.16,1.05,[.38,.40,.31]);box(-.5,.65,1.65,.25,.25,.5,[.15,.18,.16]);}
+    if(total>.45){for(let i=0;i<4;i++){const lift=((s.time??0)*.9+i*.6)%3;r.box(c.x+sn*1.4+Math.sin(i+lift)*.25,1.3+lift,c.z+cs*1.4,.3+lift*.22,.35+lift*.22,.3+lift*.22,[.31,.32,.29]);}}
     box(0,.52,2.12,1.95,.15,.15,[.55,.54,.44]);box(0,.52,-2.12,1.95,.15,.15,[.55,.54,.44]);
     for(const xx of[-1,1])for(const zz of[-1.3,1.3]){box(xx,.42,zz,.25,.78,.72,[.12,.14,.13]);box(xx*1.14,.42,zz,.03,.35,.35,[.55,.54,.44]);}
     box(0,1.84,-.6,1.3,.35,.9,[.57,.39,.24]);box(-.4,1.83,.2,.6,.28,.5,[.70,.58,.37]);

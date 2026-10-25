@@ -1,3 +1,4 @@
+import {moveAgainstBoxes} from './collision.js';
 export const VERSION=1, GOAL=3000, TANK=40;
 export const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 // Straight garage approach, then alternating smooth hairpin-like zigzags.
@@ -28,25 +29,16 @@ export function step(s,input,dt){
     let throttle=(input.forward?1:0)-(input.backward?1:0);
     if(c.fuel<=0||c.health<=0)throttle=0;
     const prev={x:c.x,z:c.z};
-    const force=throttle*(c.speed*throttle<0?20:8)*(offroad?.55:1);
-    c.speed+=force*dt;
-    c.speed*=Math.exp(-(input.brake?5:offroad?.55:.15)*dt);
-    c.speed=clamp(c.speed,-8,offroad?18:38);
-    if(Math.abs(c.speed)<.025)c.speed=0;
+    advanceSpeed(c,{...input,throttle},dt,offroad);
     const steering=(input.right?1:0)-(input.left?1:0);
     c.yaw-=steering*c.speed/(5+Math.abs(c.speed)*.3)*.30*dt;
-    c.x+=Math.sin(c.yaw)*c.speed*dt;c.z+=Math.cos(c.yaw)*c.speed*dt;
-    for(const p of nearbyProps(c.z)){
-      const radius=p.type==='rock'?p.size*.75+.9:1.15;
-      if(distance(c,p)<radius){
-        c.x=prev.x;c.z=prev.z;
-        c.health=clamp(c.health-Math.max(0,Math.abs(c.speed)-2)*1.3,0,100);
-        c.speed*=-.18;break;
-      }
+    const end={x:c.x+Math.sin(c.yaw)*c.speed*dt,z:c.z+Math.cos(c.yaw)*c.speed*dt};
+    const result=moveAgainstBoxes(c,end,obstaclesNear(c.z));
+    c.x=result.x;c.z=result.z;
+    if(result.hit){
+      const h=result.hit,normalSpeed=Math.abs(c.speed*(Math.sin(c.yaw)*h.nx+Math.cos(c.yaw)*h.nz));
+      crash(s,normalSpeed,h.nx,h.nz);c.speed=Math.abs(c.speed)>3?-c.speed*.055:0;
     }
-    const id=Math.max(0,Math.round((c.z-70)/350)), stop=station(id);
-    if(Math.abs(c.x-(stop.x+6))<6.8 && Math.abs(c.z-stop.z)<5.8){c.x=prev.x;c.z=prev.z;c.health=clamp(c.health-Math.max(0,Math.abs(c.speed)-2)*1.3,0,100);c.speed*=-.18;}
-    if(garageBlocked(c.x,c.z,1)){c.x=prev.x;c.z=prev.z;c.health=clamp(c.health-Math.max(0,Math.abs(c.speed)-2),0,100);c.speed*=-.15;}
     const moved=distance(c,prev);s.odometer+=moved;s.furthest=Math.max(s.furthest,c.z);
     c.fuel=clamp(c.fuel-(moved*.003+(throttle!==0?.0015*dt:0)),0,TANK);
     s.won=s.furthest>=GOAL;
@@ -58,6 +50,8 @@ export function step(s,input,dt){
     if(!garageBlocked(nx,nz,.35)&&!(Math.abs(nx-(b.x+6))<6.3&&Math.abs(nz-b.z)<5.3)){p.x=nx;p.z=nz;}
   }
   stepTraffic(s,dt);
+  for(const d of getDebris(s)){d.life-=dt;d.x+=d.vx*dt;d.z+=d.vz*dt;d.y=Math.max(.08,d.y+d.vy*dt);d.vy-=9.8*dt;}
+  debrisWorlds.set(s,getDebris(s).filter(d=>d.life>0));
 }
 export function interaction(s){
   if(s.mode==='drive')return Math.abs(s.car.speed)>1?'Сначала остановите машину':'Выйти из машины';
@@ -73,7 +67,7 @@ export function interact(s){
   }
   const id=Math.max(0,Math.round((s.player.z-70)/350)),st=station(id);
   if(distance(s.player,{x:st.x-3,z:st.z-9})<4&&!s.collected.includes(id)){
-    s.collected.push(id);s.car.fuel=clamp(s.car.fuel+12,0,TANK);s.car.health=clamp(s.car.health+35,0,100);return 'Запас доставлен в машину: +12 л, ремонт +35';
+    s.collected.push(id);s.car.fuel=clamp(s.car.fuel+12,0,TANK);s.car.health=clamp(s.car.health+35,0,100);if(s.car.damage)for(const k of Object.keys(s.car.damage))s.car.damage[k]=Math.max(0,s.car.damage[k]-.35);return 'Запас доставлен в машину: +12 л, ремонт +35';
   }
   if(distance(s.player,s.car)<5){s.mode='drive';return 'За рулём';}return 'Подойдите к машине или припасам';
 }
@@ -87,9 +81,10 @@ export function deserialize(raw){
     const s=JSON.parse(raw), finite=(v,max)=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<=max;
     if(!s||s.version!==VERSION||!s.car||!s.player||!['drive','walk'].includes(s.mode)||!['chase','cockpit'].includes(s.camera))return null;
     for(const p of [s.car,s.player])if(!finite(p.x,1e7)||!finite(p.z,1e7)||!finite(p.yaw,1e7))return null;
-    if(!finite(s.car.speed,50)||!finite(s.car.fuel,TANK)||s.car.fuel<0||!finite(s.car.health,100)||s.car.health<0)return null;
+    if(!finite(s.car.speed,MAX_SPEED+1)||!finite(s.car.fuel,TANK)||s.car.fuel<0||!finite(s.car.health,100)||s.car.health<0)return null;
     if(!finite(s.odometer,1e9)||s.odometer<0||!finite(s.furthest,1e7)||!finite(s.time,1e9)||s.time<0||typeof s.won!=='boolean')return null;
     if(!Array.isArray(s.collected)||s.collected.length>100000||!s.collected.every(n=>Number.isInteger(n)&&n>=0&&n<1e6))return null;
+    if(s.car.damage&&(!['front','rear','left','right'].every(k=>finite(s.car.damage[k],1)&&s.car.damage[k]>=0)))return null;
     s.car.speed=0;return s;
   }catch{return null;}
 }
@@ -119,6 +114,53 @@ export function stepTraffic(s,dt){
     }
     t.speed+=(desired-t.speed)*Math.min(1,dt*2);
     t.z+=t.dir*t.speed*dt/Math.sqrt(1+slope*slope);placeTraffic(t);
-    if(distance(c,t)<2.7&&t.hit===0){c.health=clamp(c.health-Math.max(2,Math.abs(c.speed-t.dir*t.speed)*.6),0,100);c.speed*=-.2;t.speed=0;t.hit=1.5;}
+    const hit=moveAgainstBoxes(c,{x:c.x,z:c.z},[{x:t.x,z:t.z,w:Math.abs(Math.cos(t.yaw))*2+Math.abs(Math.sin(t.yaw))*4.3,d:Math.abs(Math.sin(t.yaw))*2+Math.abs(Math.cos(t.yaw))*4.3}]);
+    if(hit.hit){c.x=hit.x;c.z=hit.z;if(t.hit===0){crash(s,Math.abs(c.speed-t.dir*t.speed),hit.hit.nx,hit.hit.nz);c.speed*=-.08;t.speed=0;t.hit=1.5;}}
   }
+}
+
+export const MAX_SPEED=75; // 270 km/h. All simulation distances remain metres.
+const engines=new WeakMap(),debrisWorlds=new WeakMap();
+export function getDebris(s){if(!debrisWorlds.has(s))debrisWorlds.set(s,[]);return debrisWorlds.get(s);}
+export function advanceSpeed(c,input,dt,offroad=false){
+  let target=input.throttle??((input.forward?1:0)-(input.backward?1:0));
+  if(c.fuel<=0||c.health<=0||input.brake)target=0;
+  let pedal=engines.get(c)??0;pedal+=(target-pedal)*(1-Math.exp(-dt*2));engines.set(c,pedal);
+  if(c.fuel<=0||c.health<=0)pedal=0;
+  const reverseBrake=c.speed*target<-.5;
+  const power=(4.8+Math.min(4.2,Math.abs(c.speed)*.12))*(offroad?.6:1)*(.55+.45*c.health/100);
+  const drag=.10+.00095*c.speed*c.speed+(offroad?Math.abs(c.speed)*.16:0);
+  const force=reverseBrake?target*16:pedal*power;
+  const v=c.speed+force*dt,braking=(input.brake?24:drag)*dt;
+  c.speed=Math.sign(v)*Math.max(0,Math.abs(v)-braking);
+  c.speed=clamp(c.speed,-10,MAX_SPEED);
+  if(offroad&&c.speed>35)c.speed=Math.max(35,c.speed-9*dt);
+  if(target===0&&Math.abs(c.speed)<.01)c.speed=0;
+}
+export function obstaclesNear(z){
+  const boxes=[],add=(x,z,w,d,type)=>boxes.push({x,z,w,d,type});
+  for(const p of nearbyProps(z))add(p.x,p.z,p.type==='rock'?p.size*1.8:2.5,p.type==='rock'?p.size*1.6:.7,p.type);
+  const base=Math.floor(z/100);
+  for(let id=base-1;id<=base+1;id++){
+    add(roadX(id*100+40)-12,id*100+40,.3,.3,'pole');add(roadX(id*100)+8,id*100,.3,.3,'marker');
+    const rng=random(id+890);for(let j=0;j<3;j++){const mz=id*100+j*50,side=j%2?-1:1;const x=roadX(mz)+side*(260+rng()*140),w=100+rng()*100;rng();add(x,mz,w,120,'hill');}
+  }
+  const near=Math.floor((z-70)/350);
+  for(let id=Math.max(0,near-1);id<=Math.max(0,near+1);id++){
+    const p=station(id);add(p.x+6,p.z,12,10,'building');
+    for(const zz of [-4,2])add(p.x-5,p.z+zz,1.2,.9,'pump');
+    for(const zz of [-7,5])add(p.x-8.7,p.z+zz,.2,.2,'pillar');
+    add(p.x-10,p.z-15,.25,.25,'sign');
+  }
+  if(z>-90&&z<40){add(-28,-25,.5,18,'garage');add(-16,-25,.5,18,'garage');add(-22,-34,12,.5,'garage');add(-26,-30,2,2,'crate');add(-18,-31,2,1,'workbench');}
+  if(Math.abs(z-3000)<40)for(const side of [-1,1])add(roadX(3000)+side*7,3000,.6,.6,'arch');
+  return boxes;
+}
+export function crash(s,speed,nx,nz){
+  const c=s.car,loss=clamp((speed-1.5)**2*.075,0,100);if(speed<=1.5)return;
+  c.health=clamp(c.health-loss,0,100);
+  c.damage??={front:0,rear:0,left:0,right:0};
+  const front=-(nx*Math.sin(c.yaw)+nz*Math.cos(c.yaw)),side=nx*Math.cos(c.yaw)-nz*Math.sin(c.yaw);
+  const part=Math.abs(front)>.5?(front>0?'front':'rear'):(side>0?'left':'right');c.damage[part]=clamp(c.damage[part]+loss/75,0,1);
+  if(speed>7){const debris=getDebris(s);for(let i=0;i<8;i++)debris.push({x:c.x-nx,z:c.z-nz,y:.8,vx:nx*(2+i%3)+(i%2?2:-2),vz:nz*(2+i%3),vy:2+i*.3,life:3,size:.08+(i%3)*.05});if(debris.length>64)debris.splice(0,debris.length-64);}
 }
