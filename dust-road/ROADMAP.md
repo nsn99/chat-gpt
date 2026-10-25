@@ -1,0 +1,33 @@
+# План разработки
+
+## Этап 1. Игровой срез, 0.1
+
+Реализован цикл: ехать → тратить топливо → остановиться → выйти → забрать запас → продолжить. Добавлены сохранения и тесты правил. Следующая обязательная проверка: поездка на реальном Mac пользователя, ощущения от руля, читаемость интерфейса, производительность на встроенной графике. Целевой бюджет, пока не подтверждённый измерениями: 30 FPS в низком качестве на старом MacBook Air.
+
+## Этап 2. Машина как физический объект
+
+Ввести физический движок после замера нагрузки. Подвеска, четыре точки контакта, сцепление шин, центр массы, переворот и коллизии всех существенных объектов. Готово, когда машина устойчиво проезжает неровности, переворачивается при соответствующем ударе и не проваливается сквозь землю. Сначала зафиксировать совместимость движка с целевым оборудованием.
+
+## Этап 3. Инвентарь и обслуживание
+
+Переносимые канистры, заливка топлива, масло, охлаждение, открываемые двери и багажник. Отдельные колёса и детали с установкой и снятием. Убрать автоматическую доставку припасов в машину. Проверка: все предметы и установленные детали переживают сохранение/загрузку, предметы в багажнике не исчезают при движении.
+
+## Этап 4. Путешествие
+
+Несколько типов построек, воспроизводимый seed мира, редкие события, смена суток, фары, варианты маршрута и ресурсов. Баланс генерации должен исключать заведомо непроходимую поездку. Ограничить число активных физических объектов и корректно выгружать дальние чанки.
+
+## Этап 5. Вертикальный срез
+
+30–60 минут связного прохождения. Отдельная настройка звука и управления, импорт/экспорт сохранений, миграция старых сохранений, измерения производительности. Настольная упаковка рассматривается после стабилизации браузерной версии. Мультиплеер не входит в исходный объём.
+
+## Правила работы
+
+Новые механики в отдельных ветках. Изменения состояния и сохранений сопровождаются тестами. Проверять `npm test` перед слиянием. Не переносить ресурсы или код The Long Drive. Не объявлять прототип полной игрой; отмечать проверенные и непроверенные возможности явно.
+
+### 0.6 shipped scope
+
+Abandoned settlements, usable parked cars and buses, tanker cargo with portable-can transfer, engine fluids and maintenance, pedestrian yield/horn/bypass and physical knockdown, endless route, green groves, procedural surface detail and soft smoke particles. Garage upgrades include armor, turbo, visible roof cargo and a basic bus living module. Future work: freeform item placement and individual wheel slots, accessible camper interior, true terrain slopes, camera occlusion, richer AI, device profiling and renderer improvements. Flight and modified multi-engine contraptions from video references are not implemented.
+
+### 0.7
+
+Interchangeable saved engine, wheel set, radiator, hood and doors; donor identity and condition retained. Missing essential parts prevent acceleration, missing cooling causes overheating. Persistent traffic donors, safe procedural placement, old-save relocation, wall interaction and pedestrian sliding fixes. 76 automated tests and UI-only mobile checks; real-device WebGL acceptance remains open.

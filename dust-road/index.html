@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#263d36"><meta name="description" content="Пыльная дорога. Самостоятельный прототип игры о машине и путешествии через пустыню."><title>Пыльная дорога · Dust Road</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<canvas id="scene" aria-label="Трёхмерная пустынная дорога"></canvas><div class="grain"></div>
+<header><a class="brand" href="./"><span class="brand-icon">↗</span> DUST ROAD <small>ДОРОЖНЫЙ ДНЕВНИК</small></a><div class="header-right"><span class="edition">ПРОТОТИП 0.7</span><button id="settings" title="Переключить качество">Качество: обычное</button><button id="menuButton" hidden>Пауза <kbd>Esc</kbd></button></div></header>
+<main id="menu" class="menu">
+  <div class="eyebrow"><span></span> ПОСЛЕ КОНЦА СВЕТА. ВПЕРЕДИ ДОРОГА.</div>
+  <h1>Пыльная<br>дорога<span>.</span></h1>
+  <p class="intro">Заброшенные дома. Чужие машины.<br>Собирайте всё, что поможет ехать дальше.</p>
+  <div class="menu-actions"><button id="start" class="primary">Начать поездку <span>↗</span></button><button id="continue" class="secondary" hidden>Продолжить</button><button id="resume" class="secondary" hidden>Вернуться в игру</button></div>
+  <p class="brief">Бесконечная поездка через пустыню.<br>Канистра сзади машины, обслуживание у капота.<br>Слив из бензовоза у заднего крана: E / Действие.</p>
+  <p class="mobile-note">Управляйте кнопками на экране.<br>Для широкого обзора поверните телефон.</p>
+  <div class="menu-bottom"><div><b>∞</b><span>ДОРОГА БЕЗ ФИНИША</span></div><i></i><div><b>↗</b><span>ИЩИТЕ НОВЫЕ МАШИНЫ</span></div></div>
+</main>
+<aside id="postcard" class="postcard"><span>МАРШРУТ № 07</span><div class="route-line"><i></i><i></i><i></i><i></i></div><div class="route-labels"><b>НАЧАЛО</b><b>ГОРИЗОНТ</b></div><p>Впереди только дорога.</p><small>35° 12′ N &nbsp; 116° 03′ W · ВЫМЫШЛЕННЫЙ МАРШРУТ</small></aside>
+<section id="hud" hidden aria-label="Состояние поездки">
+  <div class="mission"><span class="eyebrow">ПРОЙДЕНО</span><div><strong id="progress">0.00</strong><span> км</span></div><div class="progress-track"><i id="progressBar"></i></div><small id="nextStop">Ближайшая станция · 70 м</small></div>
+  <div id="personStatus" class="person-status" hidden></div><div id="inventoryLabel" class="inventory-label"></div>
+  <div id="modeLabel" class="mode-label">ЗА РУЛЁМ · ВНЕШНЯЯ КАМЕРА</div>
+  <div id="prompt" class="prompt"><kbd>E</kbd><span>Выйти из машины</span></div>
+  <div class="dashboard"><div class="speed"><strong id="speed">0</strong><span>КМ/Ч <b id="gear">N</b></span></div><div class="meter"><span>ТОПЛИВО <b id="fuel">9.0 л</b></span><div><i id="fuelBar"></i></div><small id="range">Следите за запасом</small></div><div class="meter"><span>МАШИНА <b id="health">100%</b></span><div><i id="healthBar"></i></div><small id="surface">Асфальт</small></div><button id="save" title="Сохранить поездку">Сохранить <kbd>P</kbd></button></div>
+  <div class="controls"><span><kbd>W A S D</kbd> движение</span><span><kbd>Пробел</kbd> тормоз</span><span><kbd>E</kbd> действие</span><span><kbd>C</kbd> камера</span><span><kbd>R</kbd> эвакуация</span><span><kbd>F</kbd> детали · <kbd>B</kbd> мастерская</span><span><kbd>H</kbd> отдых</span></div>
+  <div id="touchControls" class="touch-controls" aria-label="Сенсорное управление">
+    <div class="touch-actions">
+      <button id="touchAction" class="touch-action">Выйти</button>
+      <button id="touchCamera" aria-label="Сменить камеру">Камера</button>
+      <button id="moreControls" aria-expanded="false" aria-label="Дополнительные действия">Ещё</button><button id="touchSave" aria-label="Сохранить поездку">Сохранить</button>
+      <button id="touchParts" hidden>Детали</button><button id="touchWorkshop" hidden>Мастерская</button><button id="touchRest" hidden>Отдых</button><button id="touchRecover" aria-label="Эвакуировать машину">На дорогу</button>
+    </div>
+    <div class="steering-pad"><button data-hold="KeyA" aria-label="Повернуть налево">←</button><button data-hold="KeyD" aria-label="Повернуть направо">→</button></div>
+    <span class="look-hint">Ведите пальцем<br>по сцене для обзора</span>
+    <div class="pedal-pad"><button id="touchBrake" data-hold="Space" class="brake" aria-label="Тормоз">СТОП</button><button data-hold="KeyW" class="accelerator" aria-label="Газ или шаг вперёд"><span id="forwardLabel">ГАЗ</span> ↑</button><button data-hold="KeyS" class="reverse" aria-label="Торможение и задний ход">↓ <span id="reverseLabel">НАЗАД</span></button></div>
+  </div>
+</section>
+<div id="toast" role="status" aria-live="polite"></div>
+<section id="partsPanel" class="workshop parts-panel" hidden role="dialog" aria-modal="true" aria-labelledby="partsTitle"><button id="partsClose" class="primary">Закрыть</button><h2 id="partsTitle">Детали машины</h2><p>Снимайте узлы с найденных машин и устанавливайте их на другие. Снятые детали остаются с вами.</p><div class="part-row"><b id="part-label-engine"></b><small id="part-state-engine"></small><button id="part-remove-engine">Снять</button><select id="part-select-engine" aria-label="Выбрать двигатель"></select><button id="part-fit-engine">Установить</button></div><div class="part-row"><b id="part-label-wheels"></b><small id="part-state-wheels"></small><button id="part-remove-wheels">Снять</button><select id="part-select-wheels" aria-label="Выбрать колёса"></select><button id="part-fit-wheels">Установить</button></div><div class="part-row"><b id="part-label-radiator"></b><small id="part-state-radiator"></small><button id="part-remove-radiator">Снять</button><select id="part-select-radiator" aria-label="Выбрать радиатор"></select><button id="part-fit-radiator">Установить</button></div><div class="part-row"><b id="part-label-hood"></b><small id="part-state-hood"></small><button id="part-remove-hood">Снять</button><select id="part-select-hood" aria-label="Выбрать капот"></select><button id="part-fit-hood">Установить</button></div><div class="part-row"><b id="part-label-doors"></b><small id="part-state-doors"></small><button id="part-remove-doors">Снять</button><select id="part-select-doors" aria-label="Выбрать двери"></select><button id="part-fit-doors">Установить</button></div></section>
+<section id="workshop" class="workshop" hidden role="dialog" aria-modal="true" aria-labelledby="workshopTitle"><h2 id="workshopTitle">Мастерская</h2><p id="workshopStock"></p><p>Детали ищите у заброшенных домов. Улучшения остаются на этой машине.</p><button id="upgrade-armor"></button><small>Урон −40%, небольшая прибавка к весу</small><button id="upgrade-engine"></button><small>Тяга +35%; выше скорость тяжёлого транспорта</small><button id="upgrade-cargo"></button><small>Внешний багажник и ящик на крыше</small><button id="upgrade-camper"></button><small>Для автобуса: кровать, шкафы, восстановление здоровья</small><button id="workshopClose" class="primary">Вернуться к машине</button></section>
+<div id="fatal" hidden role="alert"></div>
+<div id="finish" class="finish" hidden><span class="eyebrow">МАРШРУТ ЗАВЕРШЁН</span><h2>Вы добрались.</h2><p>Пустыня осталась позади. Дорога продолжается.</p><button id="keepDriving" class="primary">Ехать дальше ↗</button></div>
+<footer id="footer"><span>ПУСТЫНЯ НЕ ТОРОПИТСЯ. И ВЫ НЕ ТОРОПИТЕСЬ.</span><span>КЛАВИАТУРА / СЕНСОРНЫЙ ЭКРАН &nbsp; / &nbsp; WEBGL</span></footer>
+<script type="module" src="src/main.js"></script>
+</body></html>
