@@ -18,8 +18,9 @@ export function sweepBox(start,end,box,halfX,halfZ){
   return {t:enter,nx,nz};
 }
 export function moveAgainstBoxes(car,end,boxes){
-  const halfX=Math.abs(Math.cos(car.yaw))*.99+Math.abs(Math.sin(car.yaw))*2.15;
-  const halfZ=Math.abs(Math.sin(car.yaw))*.99+Math.abs(Math.cos(car.yaw))*2.15;
+  const width=['bus','tanker'].includes(car.type)?1.25:.99,length=car.type==='bus'?5:car.type==='tanker'?4.2:2.15;
+  const halfX=Math.abs(Math.cos(car.yaw))*width+Math.abs(Math.sin(car.yaw))*length;
+  const halfZ=Math.abs(Math.sin(car.yaw))*width+Math.abs(Math.cos(car.yaw))*length;
   let hit=null;
   for(const box of boxes){const h=sweepBox(car,end,box,halfX,halfZ);if(h&&(!hit||h.t<hit.t))hit={...h,box};}
   if(!hit)return {x:end.x,z:end.z,hit:null};
