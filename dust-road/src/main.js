@@ -18,7 +18,7 @@ $('resume').onclick=showGame;$('menuButton').onclick=pause;$('save').onclick=()=
 $('settings').onclick=()=>{renderer.low=!renderer.low;$('settings').textContent='Качество: '+(renderer.low?'низкое':'обычное');};
 $('keepDriving').onclick=()=>{$('finish').hidden=true;showGame();};
 $('scene').onclick=()=>{if(running&&(s.mode==='walk'||s.camera==='cockpit')){try{const p=$('scene').requestPointerLock();p?.catch?.(()=>toast('Зажмите мышь и ведите для обзора'));}catch{toast('Обзор: зажмите мышь и ведите');}}};
-document.addEventListener('mousemove',e=>{if(!running)return;if(document.pointerLockElement||e.buttons===1){if(s.mode==='walk')s.player.yaw+=e.movementX*.003;else look=clamp(look+e.movementX*.003,-1.7,1.7);lookPitch=clamp(lookPitch-e.movementY*.002,-.5,.5);}});
+document.addEventListener('mousemove',e=>{if(!running)return;if(document.pointerLockElement||e.buttons===1){if(s.mode==='walk')s.player.yaw-=e.movementX*.003;else look=clamp(look-e.movementX*.003,-1.7,1.7);lookPitch=clamp(lookPitch-e.movementY*.002,-.5,.5);}});
 document.addEventListener('keydown',e=>{
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&running)e.preventDefault();
   if(e.repeat)return;

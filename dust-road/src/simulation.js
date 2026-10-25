@@ -29,7 +29,7 @@ export function step(s,input,dt){
     c.speed=clamp(c.speed,-8,offroad?18:38);
     if(Math.abs(c.speed)<.025)c.speed=0;
     const steering=(input.right?1:0)-(input.left?1:0);
-    c.yaw+=steering*c.speed/(5+Math.abs(c.speed)*.3)*.30*dt;
+    c.yaw-=steering*c.speed/(5+Math.abs(c.speed)*.3)*.30*dt;
     c.x+=Math.sin(c.yaw)*c.speed*dt;c.z+=Math.cos(c.yaw)*c.speed*dt;
     for(const p of nearbyProps(c.z)){
       const radius=p.type==='rock'?p.size*.75+.9:1.15;
@@ -45,7 +45,7 @@ export function step(s,input,dt){
     c.fuel=clamp(c.fuel-(moved*.003+(throttle!==0?.0015*dt:0)),0,TANK);
     s.won=s.furthest>=GOAL;
   }else{
-    const p=s.player;p.yaw+=((input.right?1:0)-(input.left?1:0))*1.7*dt;
+    const p=s.player;p.yaw-=((input.right?1:0)-(input.left?1:0))*1.7*dt;
     const v=((input.forward?1:0)-(input.backward?1:0))*(input.sprint?7:3.8);
     const nx=p.x+Math.sin(p.yaw)*v*dt,nz=p.z+Math.cos(p.yaw)*v*dt;
     const b=station(Math.max(0,Math.round((nz-70)/350)));
