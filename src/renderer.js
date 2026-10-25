@@ -34,7 +34,7 @@ export class Renderer{
   render(eye,target,time=0){
     const g=this.gl,dpr=Math.min(devicePixelRatio,this.low?1:1.5),w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr);
     if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}
-    g.viewport(0,0,w,h);const sky=[.77,.80,.74];g.clearColor(...sky,1);g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);
+    g.viewport(0,0,w,h);const sky=[.80,.84,.79];g.clearColor(...sky,1);g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);
     g.uniformMatrix4fv(this.vp,false,matrix(eye,target,w/h));g.uniform3fv(this.eye,eye);g.uniform3fv(this.sky,sky);
     g.bufferData(g.ARRAY_BUFFER,this.data.subarray(0,this.n),g.DYNAMIC_DRAW);g.drawArrays(g.TRIANGLES,0,this.n/6);
   }

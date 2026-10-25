@@ -1,8 +1,16 @@
 import {moveAgainstBoxes} from './collision.js';
 export const VERSION=1, GOAL=3000, TANK=40;
 export const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-// Straight garage approach, then alternating smooth hairpin-like zigzags.
-export const roadX=z=>{if(z<=70)return 0;const t=(z-70)/95,i=Math.floor(t),u=t-i,e=u*u*(3-2*u);const point=n=>n===0?0:(n%2?48:-48)+Math.sin(n*.7)*16;return point(i)+(point(i+1)-point(i))*e;};
+// Repeating route: long straights, broad bends, then a shorter zigzag section.
+const ROUTE_Z=[0,350,550,850,1025,1200,1450,1650,1850,2150,2400];
+const ROUTE_X=[0,0,72,72,-44,64,64,0,0,-60,0];
+export const roadX=z=>{
+  if(z<=70)return 0;
+  const t=(z-70)%2400;let i=0;while(t>ROUTE_Z[i+1])i++;
+  const u=(t-ROUTE_Z[i])/(ROUTE_Z[i+1]-ROUTE_Z[i]);
+  const ease=u*u*u*(u*(u*6-15)+10);
+  return ROUTE_X[i]+(ROUTE_X[i+1]-ROUTE_X[i])*ease;
+};
 export const GARAGE={x:-22,z:-25};
 export function garageBlocked(x,z,pad=0){return (Math.abs(x+28)<.35+pad||Math.abs(x+16)<.35+pad)&&z>-34-pad&&z<-15+pad || Math.abs(z+34)<.35+pad&&x>-28-pad&&x<-16+pad;}
 
@@ -30,8 +38,7 @@ export function step(s,input,dt){
     if(c.fuel<=0||c.health<=0)throttle=0;
     const prev={x:c.x,z:c.z};
     advanceSpeed(c,{...input,throttle},dt,offroad);
-    const steering=(input.right?1:0)-(input.left?1:0);
-    c.yaw-=steering*c.speed/(5+Math.abs(c.speed)*.3)*.30*dt;
+    advanceSteering(c,input,dt);
     const end={x:c.x+Math.sin(c.yaw)*c.speed*dt,z:c.z+Math.cos(c.yaw)*c.speed*dt};
     const result=moveAgainstBoxes(c,end,obstaclesNear(c.z));
     c.x=result.x;c.z=result.z;
@@ -124,24 +131,46 @@ const engines=new WeakMap(),debrisWorlds=new WeakMap();
 export function getDebris(s){if(!debrisWorlds.has(s))debrisWorlds.set(s,[]);return debrisWorlds.get(s);}
 export function advanceSpeed(c,input,dt,offroad=false){
   let target=input.throttle??((input.forward?1:0)-(input.backward?1:0));
-  if(c.fuel<=0||c.health<=0||input.brake)target=0;
-  let pedal=engines.get(c)??0;pedal+=(target-pedal)*(1-Math.exp(-dt*2));engines.set(c,pedal);
-  if(c.fuel<=0||c.health<=0)pedal=0;
-  const reverseBrake=c.speed*target<-.5;
-  const power=(4.8+Math.min(4.2,Math.abs(c.speed)*.12))*(offroad?.6:1)*(.55+.45*c.health/100);
+  target=clamp(target,-1,1);
+  const engineReady=c.fuel>0&&c.health>0;
+  // Opposite pedal is a brake until a complete stop, never an instant gear flip.
+  if(input.brake || (target!==0&&c.speed*target<0)){
+    const sign=Math.sign(c.speed),rate=input.brake?24:16;
+    c.speed=sign*Math.max(0,Math.abs(c.speed)-rate*dt);
+    engines.set(c,0);return;
+  }
+  if(!engineReady)target=0;
+  let pedal=engines.get(c)??0;
+  if(pedal*target<0)pedal=0;
+  pedal+=(target-pedal)*(1-Math.exp(-dt*3.5));engines.set(c,pedal);
+  if(!engineReady)pedal=0;
+  const reversing=target<0||c.speed<-.01;
+  const power=(reversing?4.2:4.8+Math.min(4.2,Math.abs(c.speed)*.12))*(offroad?.6:1)*(.55+.45*c.health/100);
   const drag=.10+.00095*c.speed*c.speed+(offroad?Math.abs(c.speed)*.16:0);
-  const force=reverseBrake?target*16:pedal*power;
-  const v=c.speed+force*dt,braking=(input.brake?24:drag)*dt;
-  c.speed=Math.sign(v)*Math.max(0,Math.abs(v)-braking);
-  c.speed=clamp(c.speed,-10,MAX_SPEED);
+  const v=c.speed+pedal*power*dt;
+  c.speed=Math.sign(v)*Math.max(0,Math.abs(v)-drag*dt);
+  c.speed=clamp(c.speed,-8,MAX_SPEED);
   if(offroad&&c.speed>35)c.speed=Math.max(35,c.speed-9*dt);
   if(target===0&&Math.abs(c.speed)<.01)c.speed=0;
 }
+const steeringStates=new WeakMap();
+export function wheelAngle(c){return steeringStates.get(c)??0;}
+export function advanceSteering(c,input,dt){
+  const command=clamp(input.steer??((input.right?1:0)-(input.left?1:0)),-1,1);
+  const v=Math.abs(c.speed),limit=Math.min(.48,Math.atan(2.7*9/(v*v+36)));
+  const target=command*limit,previous=wheelAngle(c);
+  let angle=previous+(target-previous)*(1-Math.exp(-dt*(command===0?15:10)));
+  angle=clamp(angle,-limit,limit);steeringStates.set(c,angle);
+  // Bicycle model. Reverse motion naturally reverses yaw, without reversing the controls.
+  c.yaw-=c.speed/2.7*Math.tan(angle)*dt;
+}
+
 export function obstaclesNear(z){
   const boxes=[],add=(x,z,w,d,type)=>boxes.push({x,z,w,d,type});
   for(const p of nearbyProps(z))add(p.x,p.z,p.type==='rock'?p.size*1.8:2.5,p.type==='rock'?p.size*1.6:.7,p.type);
   const base=Math.floor(z/100);
   for(let id=base-1;id<=base+1;id++){
+    for(const dune of sandDunesForChunk(id))add(dune.x,dune.z,dune.w,dune.d,'dune');
     add(roadX(id*100+40)-12,id*100+40,.3,.3,'pole');add(roadX(id*100)+8,id*100,.3,.3,'marker');
     const rng=random(id+890);for(let j=0;j<3;j++){const mz=id*100+j*50,side=j%2?-1:1;const x=roadX(mz)+side*(260+rng()*140),w=100+rng()*100;rng();add(x,mz,w,120,'hill');}
   }
@@ -163,4 +192,10 @@ export function crash(s,speed,nx,nz){
   const front=-(nx*Math.sin(c.yaw)+nz*Math.cos(c.yaw)),side=nx*Math.cos(c.yaw)-nz*Math.sin(c.yaw);
   const part=Math.abs(front)>.5?(front>0?'front':'rear'):(side>0?'left':'right');c.damage[part]=clamp(c.damage[part]+loss/75,0,1);
   if(speed>7){const debris=getDebris(s);for(let i=0;i<8;i++)debris.push({x:c.x-nx,z:c.z-nz,y:.8,vx:nx*(2+i%3)+(i%2?2:-2),vz:nz*(2+i%3),vy:2+i*.3,life:3,size:.08+(i%3)*.05});if(debris.length>64)debris.splice(0,debris.length-64);}
+}
+
+export function sandDunesForChunk(id){
+  const rng=random(id*41+231),out=[];
+  for(const side of [-1,1]){const z=id*100+50,x=roadX(z)+side*(100+rng()*80),w=55+rng()*35,h=3+rng()*5;out.push({x,z,w,h,d:100,side});}
+  return out;
 }

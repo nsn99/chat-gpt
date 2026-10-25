@@ -2,7 +2,7 @@ import {newGame,step,roadX,station,interact,interaction,recover,serialize,deseri
 import {Renderer} from './renderer.js';
 import {drawWorld,drawCar} from './world.js';
 import {TouchInput,bindTouchControls} from './touch-input.js';
-const $=id=>document.getElementById(id), KEY='dust-road-save-v2';
+const $=id=>document.getElementById(id), KEY='dust-road-save-v3';
 let renderer;try{renderer=new Renderer($('scene'));}catch(e){$('fatal').hidden=false;$('fatal').textContent=e.message;$('start').disabled=true;throw e;}
 let s=newGame(),running=false,started=false,keys=new Set(),last=0,auto=0,toastTime=0,look=0,lookPitch=0,finishShown=false,lastHealth=100;
 const touch=new TouchInput();
@@ -67,6 +67,8 @@ function updateHUD(){
   $('touchAction').textContent=s.mode==='drive'?'Выйти':prompt.startsWith('Забрать')?'Забрать':prompt.startsWith('Сесть')?'За руль':'Действие';
   $('touchAction').disabled=s.mode==='drive'?Math.abs(c.speed)>1:!prompt;
   $('forwardLabel').textContent=s.mode==='walk'?'ИДТИ':'ГАЗ';
+  $('gear').textContent=c.speed<-.05?'R':c.speed>.05?'D':'N';
+  $('reverseLabel').textContent=s.mode==='walk'?'НАЗАД':c.speed>.05?'ТОРМОЗ':'НАЗАД';
 }
 function frame(t){
   const dt=Math.min((t-last)/1000||0,.05);last=t;toastTime-=dt;if(toastTime<=0)$('toast').classList.remove('show');
