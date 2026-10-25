@@ -1,6 +1,8 @@
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 export async function runtime(save=null){
+ const previousNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+ Object.defineProperty(globalThis,'navigator',{configurable:true,value:{maxTouchPoints:0}});
  const html=readFileSync(new URL('../../index.html',import.meta.url),'utf8'),elements=new Map(),queue=[],storage=new Map(save?[['dust-road-save-v3',save]]:[]),errors=[];
  class Element{
   constructor(id){this.id=id;this.hidden=false;this.style={};this.dataset={};this.textContent='';this.listeners={};this.children=[];this.value='';this.lastElementChild={textContent:''};const classes=new Set();this.classList={add:c=>classes.add(c),remove:c=>classes.delete(c),contains:c=>classes.has(c),toggle(c,on){on??=!classes.has(c);on?classes.add(c):classes.delete(c);return on;}};}
@@ -17,5 +19,5 @@ export async function runtime(save=null){
  globalThis.document=doc;globalThis.window=win;globalThis.localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)};globalThis.matchMedia=()=>({matches:false});globalThis.innerWidth=390;globalThis.innerHeight=844;globalThis.devicePixelRatio=1;globalThis.requestAnimationFrame=fn=>queue.push(fn);globalThis.confirm=()=>true;
  const previousConsole=console.error;console.error=(...args)=>errors.push(args.join(' '));
  await import('../../src/main.js?test='+Math.random());let time=0;
- return {elements,doc,win,storage,errors,click:id=>{assert.ok(!elements.get(id).disabled);elements.get(id).onclick?.();},key:code=>doc.emit('keydown',{code}),frames(n=1){for(let i=0;i<n;i++){assert.ok(queue.length,'animation loop stopped');time+=1000/60;queue.shift()(time);}},close(){console.error=previousConsole;}};
+ return {elements,doc,win,storage,errors,click:id=>{assert.ok(!elements.get(id).disabled);elements.get(id).onclick?.();},key:code=>doc.emit('keydown',{code}),frames(n=1){for(let i=0;i<n;i++){assert.ok(queue.length,'animation loop stopped');time+=1000/60;queue.shift()(time);}},close(){console.error=previousConsole;if(previousNavigator)Object.defineProperty(globalThis,'navigator',previousNavigator);else delete globalThis.navigator;}};
 }
