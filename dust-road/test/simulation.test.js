@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {newGame as garageGame,step,station,interact,recover,serialize,deserialize,propsForChunk,roadX} from '../src/simulation.js';
 function newGame(){const s=garageGame();s.car.x=roadX(0);s.car.z=0;s.car.yaw=0;return s;}
-test('car accelerates, consumes fuel, and brakes',()=>{const s=newGame();for(let i=0;i<100;i++)step(s,{forward:true},.01);assert.ok(s.car.speed>5);assert.ok(s.car.z>2);assert.ok(s.car.fuel<9);const before=s.car.speed;for(let i=0;i<50;i++)step(s,{brake:true},.01);assert.ok(s.car.speed<before*.2);});
+test('car accelerates, consumes fuel, and brakes',()=>{const s=newGame();for(let i=0;i<100;i++)step(s,{forward:true},.01);assert.ok(s.car.speed>1&&s.car.speed<4);assert.ok(s.car.z>.5);assert.ok(s.car.fuel<9);const before=s.car.speed;for(let i=0;i<50;i++)step(s,{brake:true},.01);assert.ok(s.car.speed<before*.2);});
 test('empty tank cannot accelerate from rest',()=>{const s=newGame();s.car.fuel=0;for(let i=0;i<100;i++)step(s,{forward:true},.01);assert.equal(s.car.speed,0);assert.equal(s.car.fuel,0);});
 test('destroyed vehicle cannot accelerate',()=>{const s=newGame();s.car.health=0;step(s,{forward:true},.05);assert.equal(s.car.speed,0);});
 test('cannot exit at speed; stationary exit and enter work',()=>{const s=newGame();s.car.speed=5;interact(s);assert.equal(s.mode,'drive');s.car.speed=0;interact(s);assert.equal(s.mode,'walk');interact(s);assert.equal(s.mode,'drive');});

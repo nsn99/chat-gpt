@@ -4,7 +4,7 @@ import {drawWorld,drawCar} from './world.js';
 import {TouchInput,bindTouchControls} from './touch-input.js';
 const $=id=>document.getElementById(id), KEY='dust-road-save-v2';
 let renderer;try{renderer=new Renderer($('scene'));}catch(e){$('fatal').hidden=false;$('fatal').textContent=e.message;$('start').disabled=true;throw e;}
-let s=newGame(),running=false,started=false,keys=new Set(),last=0,auto=0,toastTime=0,look=0,lookPitch=0,finishShown=false;
+let s=newGame(),running=false,started=false,keys=new Set(),last=0,auto=0,toastTime=0,look=0,lookPitch=0,finishShown=false,lastHealth=100;
 const touch=new TouchInput();
 const clearTouch=bindTouchControls($('touchControls'),touch,()=>running);
 const touchDevice=matchMedia('(pointer: coarse)').matches||navigator.maxTouchPoints>0;
@@ -77,6 +77,8 @@ function frame(t){
     let rem=dt;while(rem>0){const h=Math.min(rem,1/120);step(s,input,h);rem-=h;}
     auto+=dt;if(auto>12){save(true);auto=0;}
     if(s.won&&!finishShown){finishShown=true;running=false;clearInput();document.exitPointerLock?.();save(true);$('finish').hidden=false;}
+    if(s.car.health<lastHealth-5)toast(s.car.health===0?'Машина разбита. Ремонт или «На дорогу».':'Авария! Повреждён кузов.');
+    lastHealth=s.car.health;
     updateHUD();
   }
   if(gain){gain.gain.setTargetAtTime(running&&s.mode==='drive'&&s.car.fuel>0&&s.car.health>0?.018:0,sound.currentTime,.1);osc.frequency.setTargetAtTime(35+Math.abs(s.car.speed)*3,sound.currentTime,.1);}
