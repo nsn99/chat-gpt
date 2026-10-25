@@ -1,3 +1,4 @@
+import {canRoll,engineFactor,wheelGrip,validPart,PARTS} from './parts.js';
 import {advanceEffects} from './effects.js';
 import {moveAgainstBoxes,sweepBox} from './collision.js';
 export const VERSION=1, GOAL=3000, TANK=40;
@@ -19,7 +20,7 @@ export const roadYaw=z=>Math.atan((roadX(z+1)-roadX(z-1))/2);
 export const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 export function random(seed){let t=seed|0;return ()=>{t+=0x6D2B79F5;let v=Math.imul(t^t>>>15,1|t);v^=v+Math.imul(v^v>>>7,61|v);return ((v^v>>>14)>>>0)/4294967296;};}
 export function station(id){const z=70+id*350;return {id,x:roadX(z)+23,z};}
-export function propsForChunk(id){
+function compute_propsForChunk(id){
   const r=random(id*913+42), out=[];
   for(let i=0;i<16;i++){
     const z=id*100+r()*100, side=r()<.5?-1:1;
@@ -27,17 +28,18 @@ export function propsForChunk(id){
     if(z>-48&&z<45&&x>-40&&x<12)continue;
     if(Math.abs(z-station(Math.max(0,Math.round((z-70)/350))).z)<28 && side>0 && x-roadX(z)<45)continue;
     if(settlementsNear(z,1).some(p=>Math.abs(z-p.z)<85&&Math.abs(x-p.x)<34)||oasesNear(z).some(o=>Math.abs(z-o.z)<28&&Math.abs(x-o.x)<24))continue;
+    if([-1,0,1].flatMap(n=>sandDunesForChunk(id+n)).some(d=>Math.abs(x-d.x)<d.w/2+size&&Math.abs(z-d.z)<d.d/2+size))continue;
     out.push({x,z,size,type:r()<.45?'cactus':'rock'});
   }return out;
 }
 export function nearbyProps(z){const c=Math.floor(z/100);return [-1,0,1].flatMap(n=>propsForChunk(c+n));}
-export function newGame(){return {version:VERSION,car:{x:GARAGE.x,z:GARAGE.z,yaw:0,speed:0,fuel:9,health:100},player:{x:0,z:0,yaw:0,health:100,down:0,invulnerable:0,vx:0,vz:0},vehicles:[],discovered:[],inventory:{fuel:0,oil:2,water:4,parts:1},looted:[],mode:'drive',camera:'chase',odometer:0,furthest:0,time:0,collected:[],won:false};}
+export function newGame(){return {version:VERSION,worldRevision:2,car:{x:GARAGE.x,z:GARAGE.z,yaw:0,speed:0,fuel:9,health:100},player:{x:0,z:0,yaw:0,health:100,down:0,invulnerable:0,vx:0,vz:0},vehicles:[],discovered:[],inventory:{fuel:0,oil:2,water:4,parts:1},looted:[],mode:'drive',camera:'chase',odometer:0,furthest:0,time:0,collected:[],won:false};}
 export function step(s,input,dt){
   dt=clamp(dt,0,.05);s.time+=dt;const c=s.car;ensureVehicles(s);const previousPlayer={...s.player};
   if(s.mode==='drive'){
     const offroad=Math.abs(c.x-roadX(c.z))>6;
     let throttle=(input.forward?1:0)-(input.backward?1:0);
-    if(c.fuel<=0||c.health<=0)throttle=0;
+    if(c.fuel<=0||c.health<=0||!canRoll(c))throttle=0;
     const prev={x:c.x,z:c.z};
     advanceSpeed(c,{...input,throttle},dt,offroad);
     advanceSteering(c,input,dt);
@@ -89,7 +91,7 @@ export function interact(s){
     if(!exit){s.mode='drive';return 'Двери заблокированы. Отъедьте от препятствия';}
     s.player={...s.player,...exit,yaw:c.yaw,down:0,vx:0,vz:0};return 'Вы вышли из машины';
   }
-  const tanker=nearbyTanker(s);if(tanker){const pack=inventory(s),litres=Math.min(5,20-pack.fuel,tanker.cargo);pack.fuel+=litres;tanker.cargo-=litres;return litres>0?`В канистре ${pack.fuel.toFixed(1)} л. Подойдите к задней части своей машины`:'Канистра полна';}
+  const tanker=nearbyTanker(s);if(tanker){const pack=inventory(s),litres=Math.min(5,20-pack.fuel,tanker.cargo);if(litres>0)parkVehicle(s,tanker);pack.fuel+=litres;tanker.cargo-=litres;return litres>0?`В канистре ${pack.fuel.toFixed(1)} л. Подойдите к задней части своей машины`:'Канистра полна';}
   const loot=nearbyLoot(s);if(loot){const pack=inventory(s);pack.fuel=Math.min(20,pack.fuel+5);pack.oil=Math.min(10,pack.oil+2);pack.water=Math.min(20,pack.water+4);pack.parts=Math.min(20,pack.parts+1);s.looted.push(loot.id);return 'Найдены бензин, масло, вода и запчасти';}
   const service=vehicleService(s);if(service){const c=service.car,pack=inventory(s);if(service.kind==='fuel'){const amount=Math.min(5,pack.fuel,TANK-c.fuel);pack.fuel-=amount;c.fuel+=amount;return `Заправлено ${amount.toFixed(1)} л`;}
     const oil=Math.min(pack.oil,5-(c.oil??5)),water=Math.min(pack.water,5-(c.water??5));pack.oil-=oil;pack.water-=water;c.oil=(c.oil??5)+oil;c.water=(c.water??5)+water;
@@ -112,7 +114,7 @@ export function interact(s){
 }
 export function recover(s){
   // A deterministic fallback prevents a fuel/health softlock. Progress is lost.
-  const z=Math.max(0,s.car.z-150);s.player={...s.player,health:100,down:0,invulnerable:0,vx:0,vz:0};s.car={...s.car,x:roadX(z),z,yaw:roadYaw(z),speed:0,fuel:Math.max(3,s.car.fuel-1),health:Math.max(35,s.car.health-15)};s.mode='drive';
+  const z=Math.max(0,s.car.z-150);s.player={...s.player,health:100,down:0,invulnerable:0,vx:0,vz:0};s.car={...s.car,x:roadX(z),z,yaw:roadYaw(z),speed:0,fuel:Math.max(3,s.car.fuel-1),health:Math.max(35,s.car.health-15),oil:Math.max(1,s.car.oil??5),water:Math.max(2,s.car.water??5),temperature:Math.min(85,s.car.temperature??75)};s.mode='drive';placeSafely(s.car,s.vehicles??[]);
 }
 export function serialize(s){return JSON.stringify(s);}
 export function deserialize(raw){
@@ -134,14 +136,23 @@ export function deserialize(raw){
     if(s.inventory!==undefined&&(!s.inventory||!['fuel','oil','water','parts'].every(k=>finite(s.inventory[k],20)&&s.inventory[k]>=0)))return null;
     if(s.looted!==undefined&&(!Array.isArray(s.looted)||s.looted.length>100000||!s.looted.every(n=>Number.isInteger(n)&&n>=0)))return null;
     for(const c of [s.car,...(s.vehicles??[])])if(c.upgrades!==undefined&&(!c.upgrades||Object.entries(c.upgrades).some(([k,v])=>!['armor','engine','cargo','camper'].includes(k)||typeof v!=='boolean')))return null;
-    s.car.speed=0;s.won=false;return s;
+    for(const c of [s.car,...(s.vehicles??[])])if(c.parts&&(!Object.keys(PARTS).every(k=>Object.hasOwn(c.parts,k)&&validPart(c.parts[k],k))))return null;
+    if(s.spareParts!==undefined&&(!Array.isArray(s.spareParts)||s.spareParts.length>100||!s.spareParts.every(p=>p&&PARTS[p.kind]&&validPart(p,p.kind))))return null;
+    s.car.speed=0;s.won=false;if(s.worldRevision!==2){for(const c of s.vehicles??[])placeSafely(c);placeSafely(s.car,s.vehicles??[]);s.worldRevision=2;}return s;
   }catch{return null;}
 }
 
 // Traffic is transient. Save files retain the trip, not stale AI vehicles.
 const trafficWorlds=new WeakMap();
+// Once interacted with, a stopped AI vehicle becomes a persistent donor.
+export function parkVehicle(s,c){
+  if(!c||Math.abs(c.speed)>.5)return false;
+  const traffic=getTraffic(s),index=traffic.indexOf(c);
+  if(index>=0){traffic.splice(index,1);c.fuel??=14;c.health??=75;c.rust??=.25;c.speed=0;(s.vehicles??=[]).push(c);}
+  return c===s.car||(s.vehicles??[]).includes(c);
+}
 export function getTraffic(s){
-  if(!trafficWorlds.has(s)){const cars=Array.from({length:12},(_,id)=>({id,type:id%5===2?'tanker':'sedan',name:id%5===2?'Бензовоз':'Дорожный седан',cargo:id%5===2?120:0,z:40+id*58+Math.max(0,s.car.z-160),dir:id%3===0?-1:1,speed:0,cruise:15+(id%4)*5,lane:id%3===0?3:-3,pass:null,hit:0,wait:0,avoid:false,horn:0}));trafficWorlds.set(s,cars);for(const t of cars)placeTraffic(t);}
+  if(!trafficWorlds.has(s)){const cars=Array.from({length:12},(_,id)=>({id,type:id%5===2?'tanker':'sedan',name:id%5===2?'Бензовоз':'Дорожный седан',cargo:id%5===2?120:0,z:40+id*58+Math.max(0,s.car.z-160),dir:id%3===0?-1:1,speed:0,cruise:15+(id%4)*5,lane:id%3===0?3:-3,pass:null,hit:0,wait:0,avoid:false,horn:0}));trafficWorlds.set(s,cars);const occupied=[s.car,...(s.vehicles??[])].map(vehicleBox);for(const t of cars){placeTraffic(t);for(let tries=0;tries<60&&moveAgainstBoxes(t,t,occupied).hit;tries++){t.z+=14;placeTraffic(t);}occupied.push(vehicleBox(t));}}
   return trafficWorlds.get(s);
 }
 function placeTraffic(t){t.x=roadX(t.z)+t.lane;t.yaw=roadYaw(t.z)+(t.dir<0?Math.PI:0);}
@@ -202,7 +213,8 @@ export function getDebris(s){if(!debrisWorlds.has(s))debrisWorlds.set(s,[]);retu
 export function advanceSpeed(c,input,dt,offroad=false){
   let target=input.throttle??((input.forward?1:0)-(input.backward?1:0));
   target=clamp(target,-1,1);
-  const engineReady=c.fuel>0&&c.health>0;
+  if(c.parts&&!c.parts.wheels){c.speed=0;engines.set(c,0);return;}
+  const engineReady=c.fuel>0&&c.health>0&&canRoll(c);
   // Opposite pedal is a brake until a complete stop, never an instant gear flip.
   if(input.brake || (target!==0&&c.speed*target<0)){
     const sign=Math.sign(c.speed),rate=input.brake?24:16;
@@ -215,7 +227,7 @@ export function advanceSpeed(c,input,dt,offroad=false){
   pedal+=(target-pedal)*(1-Math.exp(-dt*3.5));engines.set(c,pedal);
   if(!engineReady)pedal=0;
   const reversing=target<0||c.speed<-.01;
-  const power=(reversing?4.2:4.8+Math.min(4.2,Math.abs(c.speed)*.12))*(c.type==='tanker'?.55:c.type==='bus'?.62:1)*(c.upgrades?.engine?1.35:1)/(1+(c.upgrades?.armor?.1:0)+(c.upgrades?.camper?.12:0))*(offroad?.6:1)*(.55+.45*c.health/100);
+  const power=(reversing?4.2:4.8+Math.min(4.2,Math.abs(c.speed)*.12))*(c.type==='tanker'?.55:c.type==='bus'?.62:1)*(c.upgrades?.engine?1.35:1)*engineFactor(c)/(1+(c.upgrades?.armor?.1:0)+(c.upgrades?.camper?.12:0))*(offroad?.6:1)*(.55+.45*c.health/100);
   const drag=.10+.00095*c.speed*c.speed+(offroad?Math.abs(c.speed)*.16:0);
   const v=c.speed+pedal*power*dt;
   c.speed=Math.sign(v)*Math.max(0,Math.abs(v)-drag*dt);
@@ -227,7 +239,7 @@ const steeringStates=new WeakMap();
 export function wheelAngle(c){return steeringStates.get(c)??0;}
 export function advanceSteering(c,input,dt){
   const command=clamp(input.steer??((input.right?1:0)-(input.left?1:0)),-1,1);
-  const v=Math.abs(c.speed),limit=Math.min(.48,Math.atan(2.7*9/(v*v+36)));
+  const v=Math.abs(c.speed),limit=Math.min(.48,Math.atan(2.7*9*wheelGrip(c)/(v*v+36)));
   const target=command*limit,previous=wheelAngle(c);
   let angle=previous+(target-previous)*(1-Math.exp(-dt*(command===0?15:10)));
   angle=clamp(angle,-limit,limit);steeringStates.set(c,angle);
@@ -265,15 +277,18 @@ export function crash(s,speed,nx,nz){
   if(speed>7){const debris=getDebris(s);for(let i=0;i<8;i++)debris.push({x:c.x-nx,z:c.z-nz,y:.8,vx:nx*(2+i%3)+(i%2?2:-2),vz:nz*(2+i%3),vy:2+i*.3,life:3,size:.08+(i%3)*.05});if(debris.length>64)debris.splice(0,debris.length-64);}
 }
 
-export function sandDunesForChunk(id){
+function roadBounds(from,to){let min=Infinity,max=-Infinity;for(let z=from;z<=to;z+=5){const x=roadX(z);min=Math.min(min,x);max=Math.max(max,x);}return {min,max};}
+function compute_sandDunesForChunk(id){
   const rng=random(id*41+231),out=[];
-  for(const side of [-1,1]){const z=id*100+50,x=roadX(z)+side*(100+rng()*80),w=55+rng()*35,h=3+rng()*5;out.push({x,z,w,h,d:100,side});}
+  for(const side of [-1,1]){const z=id*100+50,bounds=roadBounds(z-170,z+170),x=(side<0?bounds.min:bounds.max)+side*(160+rng()*80),w=55+rng()*35,h=3+rng()*5;out.push({x,z,w,h,d:100,side});}
   return out;
 }
 
 // The same generated footprints drive rendering and collision, including open garage bays.
-export function settlement(id){
-  const z=160+id*260,side=id%2===0?-1:1,x=roadX(z)+side*40;
+function compute_settlement(id){
+  const z=160+id*260,side=id%2===0?-1:1,extent=roadBounds(z-30,z+100);let x=(side<0?extent.min:extent.max)+side*40;
+  // Reserve the whole site outside bends and the nearby station forecourt.
+  for(let n=0;n<5;n++){const conflict=[-1,0,1].map(d=>station(Math.max(0,Math.round((z-70)/350)+d))).some(p=>Math.abs(p.z-z)<100&&Math.abs(p.x-x)<48);if(!conflict)break;x+=side*24;}
   const buildings=[{x,z,w:11,d:9,h:4.2,kind:'house'},{x:x+side*17,z:z+14,w:10,d:14,h:4.8,kind:'garage'},{x:x-side*3,z:z+38,w:13,d:10,h:3.5,kind:'ruin'}];
   const boxes=[];
   for(const b of buildings){
@@ -292,22 +307,28 @@ export function vehicleBox(c){const sn=Math.abs(Math.sin(c.yaw)),cs=Math.abs(Mat
 export function ensureVehicles(s){
   s.vehicles??=[];s.discovered??=[];
   for(const site of settlementsNear(s.mode==='walk'?s.player.z:s.car.z,2)){
-    if(s.discovered.includes(site.id))continue;s.discovered.push(site.id);
+    if(s.discovered.includes(site.id))continue;s.discovered.push(site.id);const firstNew=s.vehicles.length;
     const garage=site.buildings[1];
     if(site.id%3===0)s.vehicles.push({id:'bus-'+site.id,type:'bus',name:'Старый автобус',x:roadX(site.z+78)+site.side*18,z:site.z+78,yaw:0,speed:0,fuel:12,health:65,rust:.55});
     if(site.id%2===0)s.vehicles.push({id:'tanker-'+site.id,type:'tanker',name:'Бензовоз',cargo:120,x:site.x-site.side*12,z:site.z+55,yaw:0,speed:0,fuel:18,health:68,rust:.5});
     for(let i=0;i<3;i++)s.vehicles.push({id:'abandoned-'+site.id+'-'+i,name:i===2?'Сгоревший кузов':i?'Ржавый седан':'Гаражный универсал',x:i?site.x-site.side*(i===2?20:13):garage.x,z:i?site.z+(i===2?26:-8):garage.z,yaw:i?-.28*site.side:Math.PI,speed:0,fuel:i===2?0:i?5:16,health:i===2?0:i?38:82,rust:i?.85:.38,color:i?[.48,.24,.12]:[.47,.52,.43],damage:{front:i?.4:0,rear:0,left:i?.2:0,right:0}});
+    for(let i=firstNew;i<s.vehicles.length;i++)placeSafely(s.vehicles[i],s.vehicles.slice(0,i));
   }
   return s.vehicles;
 }
 export function nearestVehicle(s){
   ensureVehicles(s);
-  return [s.car,...s.vehicles.filter(c=>c.health>0),...getTraffic(s).filter(c=>Math.abs(c.speed)<.5)].filter(c=>distance(s.player,c)<4.5).sort((a,b)=>distance(s.player,a)-distance(s.player,b))[0]??null;
+  return [s.car,...s.vehicles,...getTraffic(s)].filter(c=>Math.abs(c.speed)<.5&&distance(s.player,c)<Math.max(4.5,vehicleLength(c)/2+.8)&&clearReach(s.player,c)).sort((a,b)=>distance(s.player,a)-distance(s.player,b))[0]??null;
 }
 function movePerson(p,end,boxes){
-  let first=null;for(const box of boxes){const hit=sweepBox(p,end,box,.35,.35);if(hit&&(!first||hit.t<first.t))first=hit;}
-  if(!first){p.x=end.x;p.z=end.z;return;}
-  const t=Math.max(0,first.t-.001);p.x=first.x??p.x+(end.x-p.x)*t+first.nx*.02;p.z=first.z??p.z+(end.z-p.z)*t+first.nz*.02;
+  let remaining={x:end.x-p.x,z:end.z-p.z};
+  for(let iteration=0;iteration<3;iteration++){
+    const target={x:p.x+remaining.x,z:p.z+remaining.z};let first=null;
+    for(const box of boxes){const hit=sweepBox(p,target,box,.35,.35);if(hit&&(!first||hit.t<first.t))first=hit;}
+    if(!first){p.x=target.x;p.z=target.z;return;}
+    const t=Math.max(0,first.t-.001);p.x=first.x??p.x+remaining.x*t+first.nx*.02;p.z=first.z??p.z+remaining.z*t+first.nz*.02;
+    remaining.x*=1-t;remaining.z*=1-t;const inward=Math.min(0,remaining.x*first.nx+remaining.z*first.nz);remaining.x-=inward*first.nx;remaining.z-=inward*first.nz;
+  }
 }
 export function hitPedestrian(s,t,before,previousPlayer=s.player){
   const p=s.player;if(s.mode!=='walk')return false;
@@ -331,9 +352,9 @@ export function hitPedestrian(s,t,before,previousPlayer=s.player){
 
 export function nearbyTanker(s){
   ensureVehicles(s);
-  return [s.car,...s.vehicles,...getTraffic(s)].find(c=>c.type==='tanker'&&Math.abs(c.speed)<.5&&c.cargo>0&&distance(s.player,{x:c.x-Math.sin(c.yaw)*4.4,z:c.z-Math.cos(c.yaw)*4.4})<3)??null;
+  return [s.car,...s.vehicles,...getTraffic(s)].find(c=>c.type==='tanker'&&Math.abs(c.speed)<.5&&c.cargo>0&&distance(s.player,{x:c.x-Math.sin(c.yaw)*4.4,z:c.z-Math.cos(c.yaw)*4.4})<3&&clearReach(s.player,c))??null;
 }
-export function oasis(id){
+function compute_oasis(id){
   const z=220+id*1040,x=roadX(z)+58,rng=random(id*45+97);
   const trees=Array.from({length:9},()=>({x:x+(rng()-.5)*25,z:z+(rng()-.5)*35,h:4+rng()*3}));
   return {x,z,trees};
@@ -347,6 +368,7 @@ export function vehicleService(s){
   const pack=inventory(s);
   for(const c of [s.car,...(s.vehicles??[])]){
     const sn=Math.sin(c.yaw),cs=Math.cos(c.yaw),half=vehicleLength(c)/2;
+    if(!clearReach(s.player,c))continue;
     if(pack.fuel>0&&c.fuel<TANK&&distance(s.player,c.type==='tanker'?{x:c.x+cs*1.8+sn*2.6,z:c.z-sn*1.8+cs*2.6}:{x:c.x-sn*(half+.6),z:c.z-cs*(half+.6)})<1.8)return {car:c,kind:'fuel',label:`Заправить из канистры · ${pack.fuel.toFixed(1)} л`};
     const needed=((c.oil??5)<4.95&&pack.oil>0)||((c.water??5)<4.95&&pack.water>0)||(c.health<100&&pack.parts>0);
     if(needed&&distance(s.player,{x:c.x+sn*(half+.5),z:c.z+cs*(half+.5)})<1.8)return {car:c,kind:'service',label:`Обслужить · масло ${(c.oil??5).toFixed(1)} · вода ${(c.water??5).toFixed(1)} л`};
@@ -356,7 +378,7 @@ export function vehicleService(s){
 export function advanceMaintenance(c,moved,dt,powered){
   c.oil??=5;c.water??=5;c.temperature??=75;
   if(powered){c.oil=Math.max(0,c.oil-moved*.000003);c.water=Math.max(0,c.water-moved*(c.health<40?.0005:.000004));}
-  const target=powered?(c.water<.5?145:85):25;
+  const target=powered?(c.water<.5||(c.parts&&!c.parts.radiator)?145:85):25;
   c.temperature+=(target-c.temperature)*(1-Math.exp(-dt*.025));
   if(powered&&(c.oil<.1||c.temperature>120))c.health=Math.max(0,c.health-dt*(c.oil<.1?2:.8));
 }
@@ -370,3 +392,27 @@ export function workshopVehicle(s){
 export const UPGRADES={armor:{cost:2,label:'Броня',description:'Урон от ударов −40%, разгон немного медленнее'},engine:{cost:3,label:'Двигатель и турбина',description:'Тяга +35%, автобус и бензовоз до 198 км/ч'},cargo:{cost:1,label:'Багажник на крыше',description:'Внешний багажник и ящик с запасами'},camper:{cost:4,label:'Жилой модуль автобуса',description:'Кровать, шкафы и отдых с восстановлением здоровья'}};
 export function installUpgrade(s,key){const c=workshopVehicle(s),u=UPGRADES[key],pack=inventory(s);if(!c||!u)return 'Подойдите к машине у гаража';if(key==='camper'&&c.type!=='bus')return 'Жилой модуль устанавливается в автобус';if(c.upgrades?.[key])return 'Уже установлено';if(pack.parts<u.cost)return `Нужно деталей: ${u.cost}`;pack.parts-=u.cost;c.upgrades??={};c.upgrades[key]=true;return 'Установлено: '+u.label;}
 export function restInCamper(s){const c=[s.car,...(s.vehicles??[])].find(c=>c.upgrades?.camper&&Math.abs(c.speed)<.5&&distance(c,s.player)<7);if(s.mode!=='walk'||!c)return 'Подойдите к стоящему автобусу с жилым модулем';s.player.health=100;s.player.down=0;s.player.vx=0;s.player.vz=0;return 'Вы отдохнули в доме на колёсах. Здоровье восстановлено';}
+
+export function clearReach(from,to){return !obstaclesNear(from.z).some(box=>sweepBox(from,to,box,.08,.08));}
+export function placeSafely(c,others=[]){
+  const origin={x:c.x,z:c.z};
+  const free=()=>!moveAgainstBoxes(c,c,[...obstaclesNear(c.z),...others.filter(o=>Math.abs(o.z-c.z)<20).map(vehicleBox)]).hit&&Math.abs(c.x-roadX(c.z))>8;
+  // Preserve valid existing positions, including cars intentionally on the road.
+  if(!moveAgainstBoxes(c,c,[...obstaclesNear(c.z),...others.filter(o=>Math.abs(o.z-c.z)<20).map(vehicleBox)]).hit)return true;
+  for(let radius=3;radius<=90;radius+=3)for(let i=0;i<16;i++){const a=i*Math.PI/8;c.x=origin.x+Math.cos(a)*radius;c.z=origin.z+Math.sin(a)*radius;if(free())return true;}
+  c.x=origin.x;c.z=origin.z;return false;
+}
+
+const propsForChunkCache=new Map();
+export function propsForChunk(id){return cached(propsForChunkCache,id,compute_propsForChunk);}
+
+const settlementCache=new Map();
+export function settlement(id){return cached(settlementCache,id,compute_settlement);}
+
+const sandDunesForChunkCache=new Map();
+export function sandDunesForChunk(id){return cached(sandDunesForChunkCache,id,compute_sandDunesForChunk);}
+
+const oasisCache=new Map();
+export function oasis(id){return cached(oasisCache,id,compute_oasis);}
+
+function cached(map,key,build){if(!map.has(key)){if(map.size>=192)map.delete(map.keys().next().value);map.set(key,build(key));}return map.get(key);}

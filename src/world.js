@@ -93,6 +93,7 @@ export function drawCar(r,s,cockpit=false,bodyColor=teal){
     r.box(c.x+xx*cs+zz*sn,y+(z>1?crush*.25:0),c.z-xx*sn+zz*cs,w*(1-total*.08),h*(1-total*.12),d*(1-crush*.2),color.map(v=>v*(1-total*.4)),c.yaw+turn);
   };
   if(!cockpit){
+    drawPartDetails(r,c);
     r.shadow(c.x,c.z,2,4.3,.4,c.yaw);
     box(0,.78,0,1.9,.65,4.1,bodyColor);box(0,1.24,-.35,1.7,.55,1.9,[.22,.34,.32]);box(0,1.63,-.35,1.85,.13,2.05,bodyColor);
     for(const xx of[-.86,.86])for(const zz of[-1.25,.55])box(xx,1.35,zz,.09,.6,.12,paint);
@@ -101,7 +102,7 @@ export function drawCar(r,s,cockpit=false,bodyColor=teal){
     if(damage.front>.2){box(.2,1.12,1.3,1.5,.16,1.05,[.38,.40,.31]);box(-.5,.65,1.65,.25,.25,.5,[.15,.18,.16]);}
     if(c.speed<-.05)for(const side of [-1,1])box(side*.45,.85,-2.09,.2,.13,.07,[1,.96,.76]);
     box(0,.52,2.12,1.95,.15,.15,[.55,.54,.44]);box(0,.52,-2.12,1.95,.15,.15,[.55,.54,.44]);
-    for(const xx of[-1,1])for(const zz of[-1.3,1.3]){
+    for(const xx of c.parts&&!c.parts.wheels?[]:[-1,1])for(const zz of[-1.3,1.3]){
       const turn=c.yaw+(zz>0?-wheelAngle(c):0),x=c.x+xx*cs+zz*sn,z=c.z-xx*sn+zz*cs;
       r.wheel(x,.42,z,.39,.26,[.085,.09,.085],turn);r.wheel(x+xx*.14*cs,.42,z-xx*.14*sn,.21,.025,[.38,.38,.34],turn);
     }
@@ -189,7 +190,7 @@ function drawSettlement(r,site,displayZ){
 function drawTanker(r,c,cockpit){
   const sn=Math.sin(c.yaw),cs=Math.cos(c.yaw),part=(x,y,z,w,h,d,color)=>r.box(c.x+x*cs+z*sn,y,c.z-x*sn+z*cs,w,h,d,color,c.yaw);
   if(cockpit){part(0,1.7,3.3,2.4,.5,1.7,[.39,.37,.29]);return;}
-  r.shadow(c.x,c.z,2.5,8.4,1,c.yaw);
+  drawPartDetails(r,c);r.shadow(c.x,c.z,2.5,8.4,1,c.yaw);
   part(0,.65,0,2.3,.45,8.2,[.16,.17,.15]);part(0,1.7,2.7,2.5,2.3,2.6,[.58,.48,.29]);
   part(0,2.24,4.02,2.18,.85,.04,[.17,.26,.25]);part(0,2.7,4.05,.06,1,.04,[.45,.40,.30]);
   for(const side of [-1,1]){part(side*1.26,2.2,2.6,.04,.8,1.5,[.19,.28,.26]);part(side*.86,1.03,4.05,.45,.3,.08,[.97,.88,.62]);}
@@ -199,22 +200,33 @@ function drawTanker(r,c,cockpit){
   part(0,3.15,-1,.65,.2,.65,[.27,.28,.23]);part(0,1,-4.3,.35,.35,.4,[.66,.35,.10]);
   for(const side of [-1,1]){
     part(side*1.14,1.92,-1.2,.035,.22,4.7,[.59,.35,.16]);
-    for(const zz of [-2.8,-1.7,2.9]){const x=c.x+side*1.17*cs+sn*zz,z=c.z-side*1.17*sn+cs*zz;r.wheel(x,.53,z,.53,.34,[.09,.10,.09],c.yaw);r.wheel(x+side*.18*cs,.53,z-side*.18*sn,.27,.03,[.37,.36,.31],c.yaw);}
+    for(const zz of c.parts&&!c.parts.wheels?[]:[-2.8,-1.7,2.9]){const x=c.x+side*1.17*cs+sn*zz,z=c.z-side*1.17*sn+cs*zz;r.wheel(x,.53,z,.53,.34,[.09,.10,.09],c.yaw);r.wheel(x+side*.18*cs,.53,z-side*.18*sn,.27,.03,[.37,.36,.31],c.yaw);}
   }
 }
 
 function drawBus(r,c,cockpit){
   const sn=Math.sin(c.yaw),cs=Math.cos(c.yaw),part=(x,y,z,w,h,d,color)=>r.box(c.x+x*cs+z*sn,y,c.z-x*sn+z*cs,w,h,d,color,c.yaw);
   if(cockpit){part(0,1.3,4.2,2.4,.4,.6,[.22,.25,.22]);return;}
-  r.shadow(c.x,c.z,2.5,10,1,c.yaw);part(0,.8,0,2.5,.7,10,[.50,.37,.18]);part(0,1.55,0,2.4,.8,9.8,[.61,.55,.36]);part(0,2.85,0,2.5,.18,10,[.43,.42,.33]);
+  drawPartDetails(r,c);r.shadow(c.x,c.z,2.5,10,1,c.yaw);part(0,.8,0,2.5,.7,10,[.50,.37,.18]);part(0,1.55,0,2.4,.8,9.8,[.61,.55,.36]);part(0,2.85,0,2.5,.18,10,[.43,.42,.33]);
   for(const side of [-1,1]){
     for(let z=-4;z<=4;z+=1.6){part(side*1.18,2.2,z,.06,1.05,1.35,[.19,.29,.28]);part(side*1.21,2.22,z-.72,.08,1.18,.1,[.54,.50,.36]);}
     if(c.upgrades?.armor)part(side*1.27,1.35,0,.12,1.3,9.7,[.28,.30,.25]);
-    for(const z of [-3.1,3.4]){r.wheel(c.x+side*1.23*cs+z*sn,.55,c.z-side*1.23*sn+z*cs,.55,.3,[.1,.11,.1],c.yaw);}
+    for(const z of c.parts&&!c.parts.wheels?[]:[-3.1,3.4]){r.wheel(c.x+side*1.23*cs+z*sn,.55,c.z-side*1.23*sn+z*cs,.55,.3,[.1,.11,.1],c.yaw);}
     part(side*.85,1.05,5.03,.4,.26,.08,[.96,.88,.65]);
   }
   part(0,2.25,4.96,2.2,1.05,.04,[.18,.29,.28]);part(0,2.25,-4.96,2.2,1.05,.04,[.18,.29,.28]);
   if(c.upgrades?.cargo){part(0,3.02,-1,2.1,.12,4,[.22,.24,.21]);part(0,3.35,-1,1.5,.6,2,[.42,.34,.22]);}
   if(c.upgrades?.engine){part(.7,3.15,-3.8,.5,.55,.7,[.25,.27,.24]);}
   if(c.upgrades?.camper){part(-.45,1.55,-2,1.2,.35,2.5,[.60,.64,.46]);part(.8,1.95,-3,.6,1.4,1,[.59,.47,.31]);part(.6,1.7,.4,.9,.15,1.3,[.63,.50,.33]);}
+}
+
+function drawPartDetails(r,c){
+  if(!c.parts)return;const sn=Math.sin(c.yaw),cs=Math.cos(c.yaw),heavy=['bus','tanker'].includes(c.type),p=c.parts;
+  const box=(x,y,z,w,h,d,color)=>r.box(c.x+x*cs+z*sn,y,c.z-x*sn+z*cs,w,h,d,color,c.yaw);
+  const front=heavy?-3.5:1.3,y=heavy?3.05:1.12;
+  box(0,y,front,heavy?1.7:1.55,.035,1.2,[.09,.11,.10]);
+  if(p.hood)box(0,y+.05,front,1.6,.06,1.25,p.hood.color);
+  else if(p.engine){box(0,y+.12,front,.55+p.engine.power*.2,.23,.7,[.34,.37,.35]);for(let i=0;i<4;i++)box(-.25+i*.16,y+.27,front,.09,.07,.55,[.50,.50,.44]);}
+  for(const side of [-1,1])box(side*(heavy?1.28:.98),heavy?1.5:.84,heavy?3:0,.035,heavy?1.3:.52,heavy?1.3:1.7,p.doors?p.doors.color:[.08,.10,.09]);
+  if(p.radiator)box(0,heavy?1:.73,heavy?4.22:2.23,1,.23,.08,[.40,.42,.38]);
 }

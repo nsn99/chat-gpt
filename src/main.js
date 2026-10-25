@@ -1,4 +1,5 @@
-import {newGame,step,roadX,station,interact,interaction,recover,serialize,deserialize,clamp,TANK,getTraffic,inventory,fuelRate,workshopVehicle,UPGRADES,installUpgrade,restInCamper} from './simulation.js';
+import {PARTS,ensureParts,removePart,fitPart,missingParts} from './parts.js';
+import {newGame,step,roadX,station,interact,interaction,recover,serialize,deserialize,clamp,TANK,getTraffic,inventory,fuelRate,workshopVehicle,UPGRADES,installUpgrade,restInCamper,nearestVehicle,parkVehicle} from './simulation.js';
 import {Renderer} from './renderer.js';
 import {drawWorld,drawCar} from './world.js';
 import {TouchInput,bindTouchControls} from './touch-input.js';
@@ -9,17 +10,17 @@ const touch=new TouchInput();
 const clearTouch=bindTouchControls($('touchControls'),touch,()=>running);
 const touchDevice=matchMedia('(pointer: coarse)').matches||navigator.maxTouchPoints>0;
 if(touchDevice){document.body.classList.add('touch-device');renderer.low=true;$('settings').textContent='Качество: низкое';}
-function clearInput(){keys.clear();clearTouch();lookPointer=null;}
-let lookPointer=null;
+function clearInput(){keys.clear();clearTouch();lookPointer=null;mouseLooking=false;}
+let lookPointer=null,mouseLooking=false;
 let sound=null,osc=null,gain=null;
-function audio(){try{if(!sound){sound=new(window.AudioContext||window.webkitAudioContext)();osc=sound.createOscillator();gain=sound.createGain();osc.type='triangle';gain.gain.value=0;osc.connect(gain).connect(sound.destination);osc.start();}sound.resume();}catch{/* Audio is optional. */}}
+function audio(){try{if(!sound){sound=new(window.AudioContext||window.webkitAudioContext)();osc=sound.createOscillator();gain=sound.createGain();osc.type='triangle';gain.gain.value=0;osc.connect(gain).connect(sound.destination);osc.start();}sound.resume()?.catch?.(()=>{});}catch{/* Audio is optional. */}}
 function horn(){if(!sound)return;for(const frequency of [350,440]){const o=sound.createOscillator(),g=sound.createGain();o.type='sawtooth';o.frequency.value=frequency;g.gain.setValueAtTime(.025,sound.currentTime);g.gain.exponentialRampToValueAtTime(.001,sound.currentTime+.45);o.connect(g).connect(sound.destination);o.start();o.stop(sound.currentTime+.46);}}
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');toastTime=3.3;}
 function readSave(){try{return deserialize(localStorage.getItem(KEY));}catch{return null;}}
 function save(quiet=false){try{localStorage.setItem(KEY,serialize(s));if(!quiet)toast('Поездка сохранена в этом браузере');return true;}catch{if(!quiet)toast('Браузер не разрешил сохранение');return false;}}
 $('continue').hidden=!readSave();
-function showGame(){$('workshop').hidden=true;running=true;started=true;clearInput();look=0;lookPitch=0;$('menu').hidden=true;$('postcard').hidden=true;$('footer').hidden=true;$('hud').hidden=false;$('menuButton').hidden=false;document.body.classList.add('playing');audio();}
-function pause(){running=false;clearInput();document.exitPointerLock?.();$('menu').hidden=false;$('postcard').hidden=false;$('hud').hidden=true;$('resume').hidden=false;$('footer').hidden=false;document.body.classList.remove('playing');$('start').textContent='Новая поездка ↗';$('continue').hidden=true;save(true);}
+function showGame(){$('partsPanel').hidden=true;$('workshop').hidden=true;running=true;started=true;clearInput();look=0;lookPitch=0;$('menu').hidden=true;$('postcard').hidden=true;$('footer').hidden=true;$('hud').hidden=false;$('menuButton').hidden=false;document.body.classList.add('playing');audio();}
+function pause(){$('workshop').hidden=true;$('partsPanel').hidden=true;running=false;clearInput();document.exitPointerLock?.();$('menu').hidden=false;$('postcard').hidden=false;$('hud').hidden=true;$('resume').hidden=false;$('footer').hidden=false;document.body.classList.remove('playing');$('start').textContent='Новая поездка ↗';$('continue').hidden=true;save(true);}
 $('start').onclick=()=>{if((started||readSave())&&!confirm('Начать новую поездку? Текущее сохранение будет заменено.'))return;s=newGame();finishShown=false;showGame();save(true);toast(touchDevice||innerWidth<=900?'Удерживайте газ и стрелки. Обзор: ведите пальцем по сцене.':'WASD: движение · E: выход · C: камера');};
 $('continue').onclick=()=>{const loaded=readSave();if(loaded){s=loaded;finishShown=s.won;showGame();}else toast('Сохранение не удалось прочитать');};
 $('moreControls').onclick=()=>{$('touchControls').classList.toggle('expanded');$('moreControls').setAttribute('aria-expanded',$('touchControls').classList.contains('expanded'));};
@@ -30,33 +31,44 @@ function action(){if(!running)return;toast(interact(s));look=0;lookPitch=0;}
 function camera(){if(!running)return;s.camera=s.camera==='chase'?'cockpit':'chase';look=0;lookPitch=0;}
 function rescue(){if(!running)return;clearInput();recover(s);toast('Эвакуация: до 150 м назад, штраф за топливо и ремонт');}
 $('touchAction').onclick=action;$('touchCamera').onclick=camera;$('touchSave').onclick=()=>{if(running)save();};$('touchRecover').onclick=rescue;
-function openWorkshop(){if(!running)return;const c=workshopVehicle(s);if(!c){toast('Пешком подойдите к машине возле гаража');return;}clearInput();running=false;$('workshop').hidden=false;$('workshopTitle').textContent='Мастерская · '+(c.name??'Универсал');refreshWorkshop();}
+function openWorkshop(){if(!running)return;const c=workshopVehicle(s);if(!c){toast('Пешком подойдите к машине возле гаража');return;}clearInput();document.exitPointerLock?.();running=false;$('workshop').hidden=false;$('workshopTitle').textContent='Мастерская · '+(c.name??'Универсал');refreshWorkshop();}
 function refreshWorkshop(){const c=workshopVehicle(s),pack=inventory(s);$('workshopStock').textContent='Запчастей: '+pack.parts;for(const [key,u]of Object.entries(UPGRADES)){const button=$('upgrade-'+key);button.disabled=!c||!!c.upgrades?.[key]||pack.parts<u.cost||(key==='camper'&&c.type!=='bus');button.textContent=(c?.upgrades?.[key]?'Установлено · ':u.cost+' дет. · ')+u.label;}}
 for(const key of Object.keys(UPGRADES))$('upgrade-'+key).onclick=()=>{toast(installUpgrade(s,key));refreshWorkshop();save(true);};
 $('workshopClose').onclick=()=>{$('workshop').hidden=true;running=true;clearInput();};
 $('touchWorkshop').onclick=openWorkshop;$('touchRest').onclick=()=>{if(running)toast(restInCamper(s));};
+let partsTarget=null;
+function openParts(){if(!running||s.mode!=='walk')return;partsTarget=nearestVehicle(s);if(!partsTarget){toast('Подойдите к остановленной машине');return;}parkVehicle(s,partsTarget);ensureParts(partsTarget);clearInput();document.exitPointerLock?.();running=false;$('partsPanel').hidden=false;$('partsTitle').textContent='Детали · '+(partsTarget.name??'Универсал');refreshParts();}
+function refreshParts(){for(const [key,label]of Object.entries(PARTS)){
+  const part=partsTarget.parts[key];$('part-label-'+key).textContent=label;$('part-state-'+key).textContent=part?part.donor+' · состояние '+Math.round(part.condition*100)+'%':'Не установлено';$('part-remove-'+key).disabled=!part;
+  const select=$('part-select-'+key);select.replaceChildren();for(const [index,p]of (s.spareParts??[]).entries())if(p.kind===key){const option=document.createElement('option');option.value=String(index);option.textContent=p.donor+' · '+Math.round(p.condition*100)+'%';select.append(option);}
+  $('part-fit-'+key).disabled=!select.children.length;
+}}
+for(const key of Object.keys(PARTS)){$('part-remove-'+key).onclick=()=>{toast(removePart(s,partsTarget,key));refreshParts();save(true);};$('part-fit-'+key).onclick=()=>{toast(fitPart(s,partsTarget,key,Number($('part-select-'+key).value)));refreshParts();save(true);};}
+$('touchParts').onclick=openParts;$('partsClose').onclick=()=>{$('partsPanel').hidden=true;running=true;clearInput();};
 function turnView(dx,dy){if(s.mode==='walk')s.player.yaw-=dx*.004;else look=clamp(look-dx*.004,-1.7,1.7);lookPitch=clamp(lookPitch-dy*.003,-.5,.5);}
 $('scene').addEventListener('pointerdown',e=>{
   if(!running)return;
-  if(e.pointerType==='mouse'){
+  if(e.pointerType==='mouse'){mouseLooking=true;
     if(s.mode==='walk'||s.camera==='cockpit'){try{$('scene').requestPointerLock?.()?.catch?.(()=>toast('Зажмите мышь и ведите для обзора'));}catch{/* Dragging also works. */}}
   }else if(lookPointer===null){e.preventDefault();lookPointer={id:e.pointerId,x:e.clientX,y:e.clientY};try{$('scene').setPointerCapture(e.pointerId);}catch{}}
 });
 $('scene').addEventListener('pointermove',e=>{if(!running||!lookPointer||e.pointerId!==lookPointer.id)return;turnView(e.clientX-lookPointer.x,e.clientY-lookPointer.y);lookPointer.x=e.clientX;lookPointer.y=e.clientY;});
 for(const name of ['pointerup','pointercancel','lostpointercapture'])$('scene').addEventListener(name,e=>{if(lookPointer?.id===e.pointerId)lookPointer=null;});
 $('scene').addEventListener('contextmenu',e=>e.preventDefault());
-document.addEventListener('mousemove',e=>{if(running&&(document.pointerLockElement||e.buttons===1)&&!lookPointer)turnView(e.movementX,e.movementY);});
+document.addEventListener('mousemove',e=>{if(running&&(document.pointerLockElement||mouseLooking&&e.buttons===1)&&!lookPointer)turnView(e.movementX,e.movementY);});
 document.addEventListener('keydown',e=>{
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)&&running)e.preventDefault();
   if(e.repeat)return;
+  if(e.code==='Escape'&&!$('partsPanel').hidden){$('partsPanel').hidden=true;running=true;clearInput();return;}
   if(e.code==='Escape'&&!$('workshop').hidden){$('workshop').hidden=true;running=true;clearInput();return;}
   if(e.code==='Escape'){if(!started||!$('finish').hidden)return;running?pause():showGame();return;}
   if(!running)return;keys.add(e.code);
   if(e.code==='KeyE')action();
   if(e.code==='KeyC')camera();
   if(e.code==='KeyP')save();
-  if(e.code==='KeyR')rescue();if(e.code==='KeyB')openWorkshop();if(e.code==='KeyH')toast(restInCamper(s));
+  if(e.code==='KeyR')rescue();if(e.code==='KeyB')openWorkshop();if(e.code==='KeyF')openParts();if(e.code==='KeyH')toast(restInCamper(s));
 });
+window.addEventListener('pointerup',()=>{mouseLooking=false;});
 document.addEventListener('keyup',e=>keys.delete(e.code));
 window.addEventListener('blur',()=>{if(running)pause();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)pause();});
@@ -68,11 +80,11 @@ function updateHUD(){
   $('progress').textContent=(s.odometer/1000).toFixed(2);$('progressBar').style.width='100%';
   const next=Math.max(0,Math.ceil((c.z-70)/350)),st=station(next);$('nextStop').textContent='Станция впереди · '+Math.max(0,Math.round(st.z-c.z))+' м';
   $('range').textContent=c.fuel<=0?'Бак пуст. Нужны запасы':c.fuel<3?'Мало топлива. Ищите станцию':'Запас хода ~ '+Math.round(c.fuel/fuelRate(c)/1000)+' км';
-  $('surface').textContent=c.health<=0?'Нужен ремонт':Math.abs(c.x-roadX(c.z))>6?'Песок · пониженная тяга':'Асфальт';
+  $('surface').textContent=missingParts(c)|| (c.health<=0?'Нужен ремонт':Math.abs(c.x-roadX(c.z))>6?'Песок · пониженная тяга':'Асфальт');
   $('modeLabel').textContent=s.mode==='walk'?'ПЕШКОМ · ОБЗОР ПО СЦЕНЕ':s.camera==='cockpit'?'ЗА РУЛЁМ · САЛОН':'ЗА РУЛЁМ · ВНЕШНЯЯ КАМЕРА';
   const prompt=interaction(s);$('prompt').hidden=!prompt;$('prompt').lastElementChild.textContent=prompt;
   $('touchAction').textContent=s.mode==='drive'?'Выйти':prompt.startsWith('Забрать')?'Забрать':prompt.startsWith('Сесть')?'За руль':prompt.startsWith('Слить')?'Слить':prompt.startsWith('Заправить')?'Залить':prompt.startsWith('Обслужить')?'Ремонт':'Действие';
-  document.body.classList.toggle('walking',s.mode==='walk');$('touchBrake').hidden=s.mode==='walk';$('touchWorkshop').hidden=s.mode!=='walk';$('touchRest').hidden=s.mode!=='walk';
+  document.body.classList.toggle('walking',s.mode==='walk');$('touchBrake').hidden=s.mode==='walk';$('touchParts').hidden=s.mode!=='walk';$('touchWorkshop').hidden=s.mode!=='walk';$('touchRest').hidden=s.mode!=='walk';
   const pack=inventory(s);$('inventoryLabel').textContent=`Канистра ${pack.fuel.toFixed(0)}/20 л · масло ${pack.oil.toFixed(0)} · вода ${pack.water.toFixed(0)} · детали ${pack.parts}`;
   $('personStatus').hidden=s.mode!=='walk';$('personStatus').textContent=(s.player.health??100)<=0?'Вы сбиты · Действие: эвакуация':s.player.down>0?'Вы сбиты с ног · здоровье '+Math.round(s.player.health)+'%':'Здоровье '+Math.round(s.player.health??100)+'%';
   document.body.classList.toggle('injured',s.mode==='walk'&&((s.player.health??100)<40||s.player.down>0));
