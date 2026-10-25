@@ -1,0 +1,16 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {newGame,step,station,interact,recover,serialize,deserialize,propsForChunk,roadX} from '../src/simulation.js';
+test('car accelerates, consumes fuel, and brakes',()=>{const s=newGame();for(let i=0;i<100;i++)step(s,{forward:true},.01);assert.ok(s.car.speed>5);assert.ok(s.car.z>2);assert.ok(s.car.fuel<9);const before=s.car.speed;for(let i=0;i<50;i++)step(s,{brake:true},.01);assert.ok(s.car.speed<before*.2);});
+test('empty tank cannot accelerate from rest',()=>{const s=newGame();s.car.fuel=0;for(let i=0;i<100;i++)step(s,{forward:true},.01);assert.equal(s.car.speed,0);assert.equal(s.car.fuel,0);});
+test('destroyed vehicle cannot accelerate',()=>{const s=newGame();s.car.health=0;step(s,{forward:true},.05);assert.equal(s.car.speed,0);});
+test('cannot exit at speed; stationary exit and enter work',()=>{const s=newGame();s.car.speed=5;interact(s);assert.equal(s.mode,'drive');s.car.speed=0;interact(s);assert.equal(s.mode,'walk');interact(s);assert.equal(s.mode,'drive');});
+test('station supplies are collected once and clamped',()=>{const s=newGame(),p=station(0);s.mode='walk';s.player={x:p.x-3,z:p.z-9,yaw:0};s.car.fuel=35;s.car.health=90;interact(s);assert.equal(s.car.fuel,40);assert.equal(s.car.health,100);assert.deepEqual(s.collected,[0]);s.car.fuel=1;interact(s);assert.equal(s.car.fuel,1);});
+test('save round trip retains supplies and walking location',()=>{const s=newGame();s.mode='walk';s.player.x=123;s.collected=[0,2];assert.deepEqual(deserialize(serialize(s)),s);});
+test('invalid saves rejected safely',()=>{for(const raw of ['x','null','{}','{"version":999}'])assert.equal(deserialize(raw),null);for(const change of [s=>s.car.fuel=-1,s=>s.car.x='0',s=>s.player.z=null,s=>s.collected=[-1],s=>s.time=-1,s=>s.camera='bad']){const s=newGame();change(s);assert.equal(deserialize(serialize(s)),null);}});
+test('recovery prevents softlock and applies route penalty',()=>{const s=newGame();s.car.z=500;s.car.fuel=0;s.car.health=0;s.mode='walk';recover(s);assert.equal(s.car.z,350);assert.equal(s.car.x,roadX(350));assert.equal(s.car.fuel,3);assert.equal(s.car.health,35);assert.equal(s.mode,'drive');});
+test('procedural chunks are stable and differ by location',()=>{assert.deepEqual(propsForChunk(5),propsForChunk(5));assert.notDeepEqual(propsForChunk(5),propsForChunk(6));assert.ok(propsForChunk(5).every(p=>Math.abs(p.x-roadX(p.z))>=15));});
+test('moving into rock/cactus causes collision and cannot tunnel',()=>{const p=propsForChunk(2)[0],s=newGame();s.car={x:p.x,z:p.z-5,yaw:0,speed:18,fuel:9,health:100};for(let i=0;i<35;i++)step(s,{forward:true},.01);assert.ok(s.car.health<100);assert.ok(s.car.z<p.z);});
+test('walk mode leaves vehicle fuel and location unchanged',()=>{const s=newGame();interact(s);const c={...s.car};for(let i=0;i<100;i++)step(s,{forward:true},.01);assert.deepEqual(s.car,c);assert.ok(s.player.z>3);});
+test('finish is awarded for reaching route endpoint',()=>{const s=newGame();s.car.z=3001;s.car.x=roadX(3001);step(s,{},.01);assert.equal(s.won,true);});
+test('large elapsed frames are clamped',()=>{const s=newGame();step(s,{forward:true},1000);assert.ok(s.car.speed<1);assert.ok(s.time<=.05);});
