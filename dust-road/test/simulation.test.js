@@ -13,6 +13,6 @@ test('recovery prevents softlock and applies route penalty',()=>{const s=newGame
 test('procedural chunks are stable and differ by location',()=>{assert.deepEqual(propsForChunk(5),propsForChunk(5));assert.notDeepEqual(propsForChunk(5),propsForChunk(6));assert.ok(propsForChunk(5).every(p=>Math.abs(p.x-roadX(p.z))>=15));});
 test('moving into rock/cactus causes collision and cannot tunnel',()=>{const p=propsForChunk(2)[0],s=newGame();s.car={x:p.x,z:p.z-5,yaw:0,speed:18,fuel:9,health:100};for(let i=0;i<35;i++)step(s,{forward:true},.01);assert.ok(s.car.health<100);assert.ok(s.car.z<p.z);});
 test('walk mode leaves vehicle fuel and location unchanged',()=>{const s=newGame();interact(s);const c={...s.car};for(let i=0;i<100;i++)step(s,{forward:true},.01);assert.deepEqual(s.car,c);assert.ok(s.player.z>3);});
-test('finish is awarded for reaching route endpoint',()=>{const s=newGame();s.car.z=3001;s.car.x=roadX(3001);step(s,{},.01);assert.equal(s.won,true);});
+test('old finish no longer interrupts endless travel',()=>{const s=newGame();s.car.z=3001;s.car.x=roadX(3001);step(s,{},.01);assert.equal(s.won,false);});
 test('large elapsed frames are clamped',()=>{const s=newGame();step(s,{forward:true},1000);assert.ok(s.car.speed<1);assert.ok(s.time<=.05);});
 test('right steering follows camera right when facing positive world Z',()=>{const s=newGame();s.car.yaw=0;s.car.speed=10;step(s,{right:true},.05);assert.ok(s.car.yaw<0);assert.ok(s.car.x<0);const w=newGame();interact(w);w.player.yaw=0;step(w,{right:true},.05);assert.ok(w.player.yaw<0);});

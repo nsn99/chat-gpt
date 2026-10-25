@@ -129,3 +129,11 @@ button:disabled { cursor:default; opacity:.48; }
   .prompt { top:calc(120px + var(--safe-top)); bottom:auto; left:auto; right:calc(12px + var(--safe-right)); transform:none; max-width:176px; padding:6px 8px; font-size:9px; background:#f1ead9b0; }
   body:has(.touch-controls.expanded) .prompt { display:none; }
 }
+
+/* Walk mode has no car brake. Extra information sits in the existing top margin. */
+.walking #touchBrake{display:none!important}.person-status{position:fixed;top:104px;left:18px;font-size:11px;color:#f2d7ad;pointer-events:none}.inventory-label{position:fixed;top:128px;left:18px;font-size:10px;color:#dfc69e;pointer-events:none}.playing:not(.walking) .inventory-label{display:none}.injured #scene{filter:sepia(.2) saturate(.7)}
+@media(max-width:900px){.person-status{top:65px;left:10px}.inventory-label{top:83px;left:10px;font-size:9px;max-width:70vw}.brief{font-size:11px;line-height:1.5}.walking .pedal-pad{grid-template-columns:repeat(2,48px)}}
+
+.workshop{position:fixed;z-index:40;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,94vw);max-height:90dvh;overflow:auto;padding:24px;background:#eee4ce;color:#263d36;border-radius:10px;box-shadow:0 12px 70px #0008}.workshop h2{font-size:21px;margin:0 0 12px}.workshop p{font-size:12px;line-height:1.5}.workshop button{display:block;width:100%;text-align:left;padding:12px;border:1px solid #7e8572;border-radius:4px;margin-top:10px}.workshop small{display:block;font-size:10px;margin:4px 0 9px}.workshop button:disabled{opacity:.45}.touch-actions #touchWorkshop,.touch-actions #touchRest{display:none}.touch-controls.expanded #touchWorkshop,.touch-controls.expanded #touchRest{display:block}.touch-controls.expanded .touch-actions{flex-wrap:wrap;max-width:210px;justify-content:flex-end}@media(min-width:901px){.person-status{top:285px;left:42px}.inventory-label{top:307px;left:42px}}
+
+@media(pointer:coarse),(max-width:900px){.person-status{max-width:calc(100vw - 210px)}.inventory-label{width:calc(100vw - 210px);max-width:160px;line-height:1.4;color:#273b2d;text-shadow:0 1px 3px #f4e7c4}.person-status{color:#263d36;text-shadow:0 1px 3px #f4e7c4}.prompt{white-space:normal}.walking .pedal-pad .accelerator{grid-column:2;grid-row:1}.walking .pedal-pad .reverse{grid-column:2;grid-row:2}}

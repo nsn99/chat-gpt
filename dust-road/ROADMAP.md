@@ -23,3 +23,7 @@
 ## Правила работы
 
 Новые механики в отдельных ветках. Изменения состояния и сохранений сопровождаются тестами. Проверять `npm test` перед слиянием. Не переносить ресурсы или код The Long Drive. Не объявлять прототип полной игрой; отмечать проверенные и непроверенные возможности явно.
+
+### 0.6 shipped scope
+
+Abandoned settlements, usable parked cars and buses, tanker cargo with portable-can transfer, engine fluids and maintenance, pedestrian yield/horn/bypass and physical knockdown, endless route, green groves, procedural surface detail and soft smoke particles. Garage upgrades include armor, turbo, visible roof cargo and a basic bus living module. Future work: freeform item placement and detachable parts, accessible camper interior, true terrain slopes, camera occlusion, richer AI, device profiling and renderer improvements. Flight and modified multi-engine contraptions from video references are not implemented.
