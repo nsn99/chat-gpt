@@ -1,4 +1,4 @@
-import {roadX,roadYaw,station,propsForChunk,random} from './simulation.js';
+import {roadX,roadYaw,station,propsForChunk,random,getTraffic} from './simulation.js';
 const sand=[.72,.57,.37], asphalt=[.27,.28,.25], paint=[.82,.76,.56], teal=[.29,.47,.43];
 const cache=new Map();
 function props(id){if(!cache.has(id))cache.set(id,propsForChunk(id));return cache.get(id);}
@@ -8,8 +8,8 @@ export function drawWorld(r,s,displayZ=s.car.z){
   // Geometry is rebuilt from deterministic nearby chunks. Cache stays bounded.
   for(const id of cache.keys())if(Math.abs(id-base)>range+2)cache.delete(id);
   for(let id=base-2;id<=base+range;id++){
-    for(let j=0;j<10;j++){
-      const a=id*100+j*10,b=a+10,xa=roadX(a),xb=roadX(b);
+    for(let j=0;j<20;j++){
+      const a=id*100+j*5,b=a+5,xa=roadX(a),xb=roadX(b);
       r.quad([xa-6,.01,a],[xa+6,.01,a],[xb+6,.01,b],[xb-6,.01,b],asphalt);
       for(const side of[-1,1])r.quad([xa+side*5.5-.08,.025,a],[xa+side*5.5+.08,.025,a],[xb+side*5.5+.08,.025,b],[xb+side*5.5-.08,.025,b],paint);
       if(j%2===0)r.box(roadX(a+2),.035,a+2,.17,.02,4,paint,roadYaw(a+2));
@@ -25,6 +25,16 @@ export function drawWorld(r,s,displayZ=s.car.z){
     // Roadside marker, on a stable interval.
     r.box(roadX(id*100)+8,1,id*100,.18,2,.18,paint);r.box(roadX(id*100)+8,1.9,id*100,.28,.18,.2,[.83,.34,.15]);
   }
+  // Open-front starter garage. Cutaway roof near the player preserves chase-camera visibility.
+  if(Math.abs(z+25)<600){
+    r.box(-22,0,-25,12,.15,18,[.52,.51,.44]);
+    r.box(-28,2.5,-25,.5,5,18,[.65,.62,.50]);r.box(-16,2.5,-25,.5,5,18,[.65,.62,.50]);r.box(-22,2.5,-34,12,5,.5,[.58,.58,.48]);
+    if(z>5||z<-55)r.box(-22,5.1,-25,13,.3,19,[.31,.39,.34]);
+    r.box(-22,4.65,-16,12,.6,.5,[.29,.47,.43]);
+    r.box(-26,1,-30,2,2,2,[.42,.34,.24]);r.box(-18,.8,-31,2,1.6,1,[.72,.36,.19]);
+    r.quad([-28,.02,-16],[-16,.02,-16],[6,.02,42],[-6,.02,42],[.55,.52,.43]);
+  }
+  for(const t of getTraffic(s))drawCar(r,{car:t},false,[[.67,.25,.16],[.80,.72,.49],[.26,.37,.54],[.50,.53,.39]][t.id%4]);
   const sid=Math.floor((z-70)/350);
   for(let id=Math.max(0,sid-1);id<=sid+2;id++){
     const p=station(id);if(Math.abs(p.z-z)>700)continue;
@@ -44,11 +54,11 @@ export function drawWorld(r,s,displayZ=s.car.z){
   }
   if(Math.abs(3000-z)<700){const x=roadX(3000);for(const side of[-1,1])r.box(x+side*7,4,3000,.6,8,.6,teal);r.box(x,7.5,3000,15,1.4,.5,teal);for(let i=-6;i<=6;i+=2)r.box(x+i,7.5,2999.7,1,1.4,.1,paint);}
 }
-export function drawCar(r,s,cockpit=false){
+export function drawCar(r,s,cockpit=false,bodyColor=teal){
   const c=s.car,sn=Math.sin(c.yaw),cs=Math.cos(c.yaw);
   const box=(x,y,z,w,h,d,color)=>r.box(c.x+x*cs+z*sn,y,c.z-x*sn+z*cs,w,h,d,color,c.yaw);
   if(!cockpit){
-    box(0,.78,0,1.9,.65,4.1,teal);box(0,1.24,-.35,1.7,.55,1.9,[.22,.34,.32]);box(0,1.63,-.35,1.85,.13,2.05,teal);
+    box(0,.78,0,1.9,.65,4.1,bodyColor);box(0,1.24,-.35,1.7,.55,1.9,[.22,.34,.32]);box(0,1.63,-.35,1.85,.13,2.05,bodyColor);
     for(const xx of[-.86,.86])for(const zz of[-1.25,.55])box(xx,1.35,zz,.09,.6,.12,paint);
     box(0,1.2,-1.34,1.6,.48,.04,[.26,.40,.39]);
     for(const side of[-1,1]){box(side*.82,.8,2.08,.32,.2,.08,[.95,.88,.60]);box(side*.75,.85,-2.08,.25,.16,.08,[.65,.19,.1]);}

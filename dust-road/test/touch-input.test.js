@@ -4,7 +4,7 @@ import {TouchInput} from '../src/touch-input.js';
 import {newGame,step} from '../src/simulation.js';
 test('two fingers can accelerate and steer together',()=>{
   const input=new TouchInput();input.press(11,'KeyW');input.press(12,'KeyD');
-  const game=newGame(),yaw=game.car.yaw;
+  const game=newGame();game.car.x=0;game.car.z=0;const yaw=game.car.yaw;
   for(let i=0;i<30;i++)step(game,{forward:input.has('KeyW'),right:input.has('KeyD')},1/60);
   assert.ok(game.car.speed>0);assert.ok(game.car.yaw<yaw);
   input.release(12);assert.equal(input.has('KeyW'),true);assert.equal(input.has('KeyD'),false);

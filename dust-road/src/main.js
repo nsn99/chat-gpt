@@ -2,7 +2,7 @@ import {newGame,step,roadX,station,interact,interaction,recover,serialize,deseri
 import {Renderer} from './renderer.js';
 import {drawWorld,drawCar} from './world.js';
 import {TouchInput,bindTouchControls} from './touch-input.js';
-const $=id=>document.getElementById(id), KEY='dust-road-save-v1';
+const $=id=>document.getElementById(id), KEY='dust-road-save-v2';
 let renderer;try{renderer=new Renderer($('scene'));}catch(e){$('fatal').hidden=false;$('fatal').textContent=e.message;$('start').disabled=true;throw e;}
 let s=newGame(),running=false,started=false,keys=new Set(),last=0,auto=0,toastTime=0,look=0,lookPitch=0,finishShown=false;
 const touch=new TouchInput();
@@ -21,6 +21,7 @@ function showGame(){running=true;started=true;clearInput();look=0;lookPitch=0;$(
 function pause(){running=false;clearInput();document.exitPointerLock?.();$('menu').hidden=false;$('postcard').hidden=false;$('hud').hidden=true;$('resume').hidden=false;$('footer').hidden=false;document.body.classList.remove('playing');$('start').textContent='Новая поездка ↗';$('continue').hidden=true;save(true);}
 $('start').onclick=()=>{if((started||readSave())&&!confirm('Начать новую поездку? Текущее сохранение будет заменено.'))return;s=newGame();finishShown=false;showGame();save(true);toast(touchDevice||innerWidth<=900?'Удерживайте газ и стрелки. Обзор: ведите пальцем по сцене.':'WASD: движение · E: выход · C: камера');};
 $('continue').onclick=()=>{const loaded=readSave();if(loaded){s=loaded;finishShown=s.won;showGame();}else toast('Сохранение не удалось прочитать');};
+$('moreControls').onclick=()=>{$('touchControls').classList.toggle('expanded');$('moreControls').setAttribute('aria-expanded',$('touchControls').classList.contains('expanded'));};
 $('resume').onclick=showGame;$('menuButton').onclick=pause;$('save').onclick=()=>save();
 $('settings').onclick=()=>{renderer.low=!renderer.low;$('settings').textContent='Качество: '+(renderer.low?'низкое':'обычное');};
 $('keepDriving').onclick=()=>{$('finish').hidden=true;showGame();};
@@ -85,7 +86,7 @@ function frame(t){
   if(!running&&!started){eye=[c.x-11,5,c.z-13];target=[c.x+1,1,c.z+5];}
   else if(s.mode==='walk'){const p=s.player;eye=[p.x,1.7,p.z];target=[p.x+Math.sin(p.yaw)*10,1.7+lookPitch*10,p.z+Math.cos(p.yaw)*10];}
   else if(cockpit){eye=[c.x-Math.cos(c.yaw)*.38,1.48,c.z+Math.sin(c.yaw)*.38-.1];target=[eye[0]+Math.sin(c.yaw+look)*20,1.4+lookPitch*20,eye[2]+Math.cos(c.yaw+look)*20];}
-  else{eye=[c.x-Math.sin(c.yaw+look)*9,clamp(4.2+lookPitch*6,1.8,7.2),c.z-Math.cos(c.yaw+look)*9];target=[c.x+Math.sin(c.yaw)*4,.9,c.z+Math.cos(c.yaw)*4];}
+  else{const inGarage=Math.abs(c.x+22)<7&&c.z>-36&&c.z<-12;const follow=inGarage?3.5:9;eye=[c.x-Math.sin(c.yaw+look)*follow,clamp((inGarage?2.7:4.2)+lookPitch*6,1.8,7.2),c.z-Math.cos(c.yaw+look)*follow];target=[c.x+Math.sin(c.yaw)*4,.9,c.z+Math.cos(c.yaw)*4];}
   renderer.render(eye,target,s.time);requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

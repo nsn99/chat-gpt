@@ -1,0 +1,9 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {newGame,roadX,getTraffic,stepTraffic,garageBlocked,GARAGE,step} from '../src/simulation.js';
+test('new trip starts inside the open garage and can exit forwards',()=>{const s=newGame();assert.equal(s.car.x,GARAGE.x);assert.equal(s.car.z,GARAGE.z);assert.equal(garageBlocked(s.car.x,s.car.z,1),false);for(let i=0;i<400;i++)step(s,{forward:true},.01);assert.ok(s.car.z>-16);assert.equal(s.car.health,100);assert.ok(garageBlocked(-28,-25,1));});
+test('road alternates through strong left and right bends with a continuous approach',()=>{assert.equal(roadX(70),0);assert.ok(roadX(165)>40);assert.ok(roadX(260)<-25);for(let z=70;z<1500;z++)assert.ok(Math.abs(roadX(z+.01)-roadX(z))<.03);});
+test('traffic moves both directions and remains bounded',()=>{const s=newGame(),cars=getTraffic(s),a=cars.find(t=>t.dir<0),b=cars.find(t=>t.dir>0),az=a.z,bz=b.z;stepTraffic(s,.05);assert.ok(a.z<az);assert.ok(b.z>bz);s.car.z=5000;stepTraffic(s,.05);assert.equal(cars.length,12);assert.ok(cars.every(t=>Math.abs(t.z-s.car.z)<751));});
+test('faster car overtakes player only when oncoming lane is clear',()=>{const s=newGame();s.car.z=300;s.car.x=roadX(300)-3;const cars=getTraffic(s),t=cars.find(c=>c.dir>0);for(const c of cars)c.z=900+c.id*10;t.z=270;t.cruise=30;stepTraffic(s,.05);assert.equal(t.pass,-1);assert.ok(t.lane>-3);});
+test('oncoming traffic blocks starting an overtake',()=>{const s=newGame();s.car.z=300;s.car.x=roadX(300)-3;const cars=getTraffic(s),t=cars.find(c=>c.dir>0);for(const c of cars)c.z=900+c.id*10;t.z=270;cars[0].z=350;stepTraffic(s,.05);assert.equal(t.pass,null);});
+test('collision with traffic damages car and respects cooldown',()=>{const s=newGame();s.car.z=200;s.car.x=roadX(200)+3;const t=getTraffic(s)[0];t.z=200;t.speed=20;stepTraffic(s,0);const health=s.car.health;assert.ok(health<100);stepTraffic(s,0);assert.equal(s.car.health,health);});
