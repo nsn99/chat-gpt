@@ -1,9 +1,9 @@
 {
   "name": "dust-road",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "An original, dependency-free desert driving survival prototype",
-  "scripts": {"test": "node --test", "start": "node server.mjs", "dev": "node server.mjs"},
+  "scripts": {"test": "node --test", "start": "node server.mjs", "dev": "node server.mjs", "build": "node build.mjs"},
   "engines": {"node": ">=20"}
 }

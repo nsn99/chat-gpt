@@ -18,4 +18,5 @@ jobs:
         with:
           node-version: '20'
       - run: npm test
-      - run: node --check src/main.js && node --check src/renderer.js && node --check src/world.js && node --check server.mjs
+      - run: node --check src/main.js && node --check src/renderer.js && node --check src/world.js && node --check src/touch-input.js && node --check server.mjs
+      - run: npm run build
