@@ -26,4 +26,8 @@
 
 ### 0.6 shipped scope
 
-Abandoned settlements, usable parked cars and buses, tanker cargo with portable-can transfer, engine fluids and maintenance, pedestrian yield/horn/bypass and physical knockdown, endless route, green groves, procedural surface detail and soft smoke particles. Garage upgrades include armor, turbo, visible roof cargo and a basic bus living module. Future work: freeform item placement and detachable parts, accessible camper interior, true terrain slopes, camera occlusion, richer AI, device profiling and renderer improvements. Flight and modified multi-engine contraptions from video references are not implemented.
+Abandoned settlements, usable parked cars and buses, tanker cargo with portable-can transfer, engine fluids and maintenance, pedestrian yield/horn/bypass and physical knockdown, endless route, green groves, procedural surface detail and soft smoke particles. Garage upgrades include armor, turbo, visible roof cargo and a basic bus living module. Future work: freeform item placement and individual wheel slots, accessible camper interior, true terrain slopes, camera occlusion, richer AI, device profiling and renderer improvements. Flight and modified multi-engine contraptions from video references are not implemented.
+
+### 0.7
+
+Interchangeable saved engine, wheel set, radiator, hood and doors; donor identity and condition retained. Missing essential parts prevent acceleration, missing cooling causes overheating. Persistent traffic donors, safe procedural placement, old-save relocation, wall interaction and pedestrian sliding fixes. 76 automated tests and UI-only mobile checks; real-device WebGL acceptance remains open.
